@@ -17,6 +17,7 @@
 #include "sensor_msgs/msg/point_cloud2.hpp"
 #include "sensor_msgs/msg/image.hpp"
 
+#include <dv-processing/visualization/events_visualizer.hpp>
 
 namespace dv_ros2_capture
 {

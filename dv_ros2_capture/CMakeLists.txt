@@ -26,15 +26,19 @@ add_executable(${PROJECT_NAME}_node
   src/Capture.cpp
   )
 
+ADD_SUBDIRECTORY(../dv-processing ../dv-processing EXCLUDE_FROM_ALL)
+
 ament_target_dependencies(${PROJECT_NAME}_core ${dependencies})
 ament_target_dependencies(${PROJECT_NAME}_node ${dependencies})
 
-target_link_libraries(${PROJECT_NAME}_core ${catkin_LIBRARIES})
+target_link_libraries(${PROJECT_NAME}_core ${catkin_LIBRARIES} dv::processing)
 
 target_link_libraries(${PROJECT_NAME}_node 
   ${PROJECT_NAME}_core
   ${catkin_LIBRARIES}
+  dv::processing
   )
+
 
 install(DIRECTORY
   launch
