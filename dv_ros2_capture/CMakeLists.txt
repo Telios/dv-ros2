@@ -17,8 +17,10 @@ set(dependencies "std_msgs" "rclcpp" "geometry_msgs" "sensor_msgs" "dv_ros2_msgs
 
 include_directories(include())
 
+file(GLOB_RECURSE SOURCES src/*.cpp)
+
 add_library(${PROJECT_NAME}_core
-  src/Capture.cpp
+  ${SOURCES}
   )
 
 add_executable(${PROJECT_NAME}_node

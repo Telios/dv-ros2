@@ -9,7 +9,7 @@ def generate_launch_description():
             executable=f'{package_name}_node',
             name=f'{package_name}_node',
             parameters=[
-                {'rate': 2.0,
+                {'rate': 1.0,
                  },
             ],
             output='screen',

@@ -1,5 +1,4 @@
-#ifndef _ACCUMULATOR_H_
-#define _ACCUMULATOR_H_
+#pragma once
 
 // C++ System Headers
 #include <iostream>
@@ -77,4 +76,3 @@ namespace dv_ros2_accumulation
 
     };
 }  // namespace dv_ros2_accumulation
-#endif  // _ACCUMULATOR_H_
