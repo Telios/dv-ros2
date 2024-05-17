@@ -30,6 +30,7 @@
 #include "dv_ros2_msgs/msg/event_array.hpp"
 #include "dv_ros2_msgs/msg/trigger.hpp"
 #include "dv_ros2_capture/Reader.hpp"
+#include "dv_ros2_messaging/messaging.hpp"
 
 namespace dv_ros2_capture
 {

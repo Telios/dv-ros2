@@ -8,12 +8,13 @@ endif()
 # find dependencies
 find_package(ament_cmake REQUIRED)
 find_package(dv_ros2_msgs REQUIRED)
+find_package(dv_ros2_messaging REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 
-set(dependencies "std_msgs" "rclcpp" "geometry_msgs" "sensor_msgs" "dv_ros2_msgs")
+set(dependencies "std_msgs" "rclcpp" "geometry_msgs" "sensor_msgs" "dv_ros2_msgs" "dv_ros2_messaging")
 
 include_directories(include())
 

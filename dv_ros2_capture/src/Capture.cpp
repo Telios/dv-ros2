@@ -198,7 +198,7 @@ namespace dv_ros2_capture
     inline void Capture::parameterPrinter() const
     {
         RCLCPP_INFO(m_node->get_logger(), "---- Parameters ----");
-        RCLCPP_INFO(m_node->get_logger(), "time_increment: %d", m_params.timeIncrement);
+        RCLCPP_INFO(m_node->get_logger(), "time_increment: %d", static_cast<int>(m_params.timeIncrement));
         RCLCPP_INFO(m_node->get_logger(), "frames: %s", m_params.frames ? "true" : "false");
         RCLCPP_INFO(m_node->get_logger(), "events: %s", m_params.events ? "true" : "false");
         RCLCPP_INFO(m_node->get_logger(), "imu: %s", m_params.imu ? "true" : "false");
@@ -211,7 +211,7 @@ namespace dv_ros2_capture
         RCLCPP_INFO(m_node->get_logger(), "transform_imu_to_camera_frame: %s", m_params.transformImuToCameraFrame ? "true" : "false");
         RCLCPP_INFO(m_node->get_logger(), "unbiased_imu_data: %s", m_params.unbiasedImuData ? "true" : "false");
         RCLCPP_INFO(m_node->get_logger(), "noise_filtering: %s", m_params.noiseFiltering ? "true" : "false");
-        RCLCPP_INFO(m_node->get_logger(), "noise_ba_time: %d", m_params.noiseBATime);
+        RCLCPP_INFO(m_node->get_logger(), "noise_ba_time: %d", static_cast<int>(m_params.noiseBATime));
         RCLCPP_INFO(m_node->get_logger(), "sync_device_list: ");
         for (const auto &device : m_params.syncDeviceList)
         {
@@ -583,34 +583,7 @@ namespace dv_ros2_capture
 
                     if (m_events_publisher->get_subscription_count() > 0) 
                     {
-                        // TODO: convert from dv::EventStore to ROS msg; port dv-ros-messaging package
-                        auto msg = dv_ros2_msgs::msg::EventArray();
-                        rclcpp::Time time = {static_cast<uint32_t>(store.getLowestTime() / 1'000'000), static_cast<uint32_t>(store.getLowestTime() % 1'000'000) * 1'000};
-
-                        int64_t secInMicro = static_cast<int64_t>(time.seconds()) * 1'000'000;
-                        msg.header.stamp = rclcpp::Time(static_cast<double>(store.getHighestTime()) * 1e-6);
-                        msg.events.reserve(store.size());
-                        for (const auto &event : store)
-                        {
-                            int64_t time_diff = event.timestamp() - secInMicro;
-                            if (time_diff < 1'000'000)
-                            {
-                                // We are in the same second, we only need to update the nano-second part
-                                time = {static_cast<uint32_t>(time.seconds()), static_cast<uint32_t>(time_diff * 1'000)};
-                            }
-                            else
-                            {
-                                time = {static_cast<uint32_t>(event.timestamp() / 1'000'000), static_cast<uint32_t>(event.timestamp() % 1'000'000) * 1'000};
-                                secInMicro = static_cast<int64_t>(time.seconds()) * 1'000'000;
-                            }
-                            auto &e = msg.events.emplace_back();
-                            e.x = event.x();
-                            e.y = event.y();
-                            e.polarity = event.polarity();
-                            e.ts = time;
-                        }
-                        msg.width = resolution.width;
-                        msg.height = resolution.height;
+                        auto msg = dv_ros2_msgs::toRosEventsMessage(store, resolution);
                         m_events_publisher->publish(msg);
                     }
                     m_current_seek = store.getHighestTime();
