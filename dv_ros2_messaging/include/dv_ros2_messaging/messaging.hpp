@@ -125,8 +125,7 @@ namespace _detail {
 [[nodiscard]] inline sensor_msgs::msg::Image frameToRosImageMessage(const dv::Frame &frame) 
 {
 	sensor_msgs::msg::Image imageMessage = toRosImageMessage(frame.image);
-	imageMessage.header.stamp.sec = toRosTime(frame.timestamp).seconds();
-    imageMessage.header.stamp.nanosec = toRosTime(frame.timestamp).nanoseconds();
+	imageMessage.header.stamp = toRosTime(frame.timestamp);
 	return imageMessage;
 }
 
@@ -136,8 +135,7 @@ namespace _detail {
 [[nodiscard]] inline sensor_msgs::msg::Imu toRosImuMessage(const dv::IMU &imu) 
 {
 	sensor_msgs::msg::Imu imuMessage;
-	imuMessage.header.stamp.sec = toRosTime(imu.timestamp).seconds();
-    imuMessage.header.stamp.nanosec = toRosTime(imu.timestamp).nanoseconds();
+	imuMessage.header.stamp = toRosTime(imu.timestamp);
 
     constexpr float pi = 3.14159265358979323846f;
 	constexpr float deg2rad = pi / 180.0f;
@@ -159,8 +157,7 @@ namespace _detail {
 [[nodiscard]] inline dv_ros2_msgs::msg::Trigger toRosTriggerMessage(const dv::Trigger &trigger) 
 {
 	dv_ros2_msgs::msg::Trigger msg;
-	msg.timestamp.sec = toRosTime(trigger.timestamp).seconds();
-    msg.timestamp.nanosec = toRosTime(trigger.timestamp).nanoseconds();
+	msg.timestamp = toRosTime(trigger.timestamp);
 	msg.type      = static_cast<int8_t>(trigger.type);
 	return msg;
 }
@@ -176,8 +173,7 @@ namespace _detail {
 	rclcpp::Time time = toRosTime(events.getLowestTime());
 
 	int64_t secInMicro = static_cast<int64_t>(time.seconds()) * 1'000'000;
-	msg.header.stamp.sec   = rclcpp::Time(static_cast<double>(events.getHighestTime()) * 1e-6).seconds();
-    msg.header.stamp.nanosec = rclcpp::Time(static_cast<double>(events.getHighestTime()) * 1e-6).nanoseconds();
+	msg.header.stamp   = rclcpp::Time(static_cast<double>(events.getHighestTime()) * 1e-6);
 	msg.events.reserve(events.size());
 	for (const auto &event : events) 
     {
@@ -196,8 +192,7 @@ namespace _detail {
 		e.x           = event.x();
 		e.y           = event.y();
 		e.polarity    = event.polarity();
-		e.ts.sec      = time.seconds();
-        e.ts.nanosec  = time.nanoseconds();
+		e.ts 		  = time;
 	}
 
 	msg.width  = resolution.width;
@@ -226,7 +221,7 @@ namespace _detail {
 			timestamp = static_cast<int64_t>(seconds) * 1'000'000;
 		}
 		const int64_t eventTimestamp = timestamp + static_cast<int64_t>(event.ts.nanosec / 1000);
-		dv::runtime_assert(eventTimestamp == toDvTime({static_cast<uint32_t>(event.ts.sec), static_cast<uint32_t>(event.ts.nanosec)}), "Timestamp conversion failed!");
+		dv::runtime_assert(eventTimestamp == toDvTime(event.ts), "Timestamp conversion failed!");
 		eventPacket->elements.emplace_back(eventTimestamp, event.x, event.y, event.polarity);
 	}
 	dv::EventStore store(std::const_pointer_cast<const dv::EventPacket>(eventPacket));
@@ -243,7 +238,7 @@ namespace _detail {
 	const std::string encoding(imageMsg.encoding);
 	cv::Mat image(static_cast<int32_t>(imageMsg.height), static_cast<int32_t>(imageMsg.width),
 		_detail::imageTypeFromEncoding(encoding), const_cast<uchar *>(&imageMsg.data[0]), imageMsg.step);
-	return {toDvTime({static_cast<uint32_t>(imageMsg.header.stamp.sec), static_cast<uint32_t>(imageMsg.header.stamp.nanosec)}), image.clone()};
+	return {toDvTime(imageMsg.header.stamp), image.clone()};
 }
 
 
@@ -266,7 +261,7 @@ public:
 		const std::string encoding(msg->encoding);
 		cv::Mat image(static_cast<int32_t>(msg->height), static_cast<int32_t>(msg->width),
 			_detail::imageTypeFromEncoding(encoding), const_cast<uchar *>(&msg->data[0]), msg->step);
-		frame = dv::Frame(toDvTime({static_cast<uint32_t>(msg->header.stamp.sec), static_cast<uint32_t>(msg->header.stamp.nanosec)}), image);
+		frame = dv::Frame(toDvTime(msg->header.stamp), image);
 	}
 };
 
