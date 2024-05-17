@@ -14,12 +14,25 @@ find_package(geometry_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 find_package(builtin_interfaces REQUIRED)
 
+set(msg_files
+  "msg/ImuInfo.msg"
+  "msg/CameraDiscovery.msg"
+  "msg/Event.msg"
+  "msg/EventArray.msg"
+  "msg/Trigger.msg"
+  )
+
+set(srv_files
+  "srv/SetImuBiases.srv"
+  "srv/SetImuInfo.srv"
+  "srv/SynchronizeCamera.srv"
+  )
+  
 rosidl_generate_interfaces(${PROJECT_NAME}
-    "msg/Event.msg"
-    "msg/EventArray.msg"
-    "msg/Trigger.msg"
-    DEPENDENCIES builtin_interfaces std_msgs sensor_msgs geometry_msgs
-)
+  ${msg_files}
+  ${srv_files}
+  DEPENDENCIES std_msgs geometry_msgs sensor_msgs 
+  )
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -33,5 +46,6 @@ if(BUILD_TESTING)
   ament_lint_auto_find_test_dependencies()
 endif()
 
+ament_export_dependencies(rosidl_default_runtime)
 ament_package()
 

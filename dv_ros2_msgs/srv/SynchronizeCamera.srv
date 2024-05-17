@@ -1,0 +1,5 @@
+int64 timestamp_offset
+string master_camera_name
+---
+bool success
+string camera_name

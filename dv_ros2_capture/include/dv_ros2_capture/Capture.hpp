@@ -20,6 +20,9 @@
 #include "sensor_msgs/msg/imu.hpp"
 #include "sensor_msgs/msg/camera_info.hpp"
 #include "sensor_msgs/distortion_models.hpp"
+#include "std_msgs/msg/string.hpp"
+#include "tf2_msgs/msg/tf_message.hpp"
+#include "geometry_msgs/msg/transform_stamped.hpp"
 
 #include <dv-processing/visualization/events_visualizer.hpp>
 #include <dv-processing/camera/calibration_set.hpp>
@@ -31,6 +34,11 @@
 #include "dv_ros2_msgs/msg/trigger.hpp"
 #include "dv_ros2_capture/Reader.hpp"
 #include "dv_ros2_messaging/messaging.hpp"
+#include "dv_ros2_msgs/srv/synchronize_camera.hpp"
+#include "dv_ros2_msgs/srv/set_imu_info.hpp"
+#include "dv_ros2_msgs/srv/set_imu_biases.hpp"
+#include "dv_ros2_msgs/msg/camera_discovery.hpp"
+#include "dv_ros2_msgs/msg/imu_info.hpp"
 
 namespace dv_ros2_capture
 {
@@ -90,9 +98,11 @@ namespace dv_ros2_capture
         rclcpp::Publisher<dv_ros2_msgs::msg::EventArray>::SharedPtr m_events_publisher;
         rclcpp::Publisher<dv_ros2_msgs::msg::Trigger>::SharedPtr m_trigger_publisher;
         rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr m_imu_publisher;
+        rclcpp::Publisher<dv_ros2_msgs::msg::CameraDiscovery>::SharedPtr m_discovery_publisher;
+        rclcpp::Publisher<tf2_msgs::msg::TFMessage>::SharedPtr m_transform_publisher;
         
         std::unique_ptr<dv::noise::BackgroundActivityNoiseFilter<>> m_noise_filter = nullptr;
-
+        
         /// Threads related
         std::thread m_frame_thread;
         TimestampQueue m_frame_queue;
@@ -111,6 +121,16 @@ namespace dv_ros2_capture
         std::atomic<bool> m_synchronized;
         std::atomic<int64_t> m_current_seek;
 
+        dv::camera::CalibrationSet m_calibration;
+
+        int64_t m_imu_time_offset = 0;
+        Eigen::Vector3f m_acc_biases = Eigen::Vector3f::Zero();
+        Eigen::Vector3f m_gyro_biases = Eigen::Vector3f::Zero();
+        rclcpp::Time startup_time;
+        std::optional<tf2_msgs::msg::TFMessage> m_imu_to_cam_transforms = std::nullopt;
+        dv::kinematics::Transformationf m_imu_to_cam_transform =
+            dv::kinematics::Transformationf(0, Eigen::Vector3f::Zero(), Eigen::Quaternion<float>::Identity());
+
         /// @brief Parameter initialization
         inline void parameterInitilization() const;
 
@@ -124,7 +144,52 @@ namespace dv_ros2_capture
         /// @brief Populate the info message
         void populateInfoMsg(const dv::camera::CameraGeometry &cameraGeometry);
 
-        /// @brief eclcpp node variable
+        /// @brief Convert the imu message frame into the camera frame if the transformation exists.
+        /// @param imu
+        /// @return ROS2 Imu message in camera reference frame
+        [[nodiscard]] inline sensor_msgs::msg::Imu transformImuFrame(sensor_msgs::msg::Imu &&imu);
+
+        /// @brief Generate the CalibrationSet with the data from the Set Camera Info and the set IMU services.
+        void updateCalibrationSet();
+
+        /// @brief Stores the calibration data into a new file.
+        /// @return Path to the new file.
+        [[nodiscard]] fs::path saveCalibration();
+
+        /// @brief Write current capture node calibration parameters into an active calibration file.
+        void generateActiveCalibrationFile();
+
+        /// @brief Get the path to the active calibration file.
+        /// @return Filesystem path to the currently opened camera active calibration file.
+        [[nodiscard]] fs::path getActiveCalibrationFile() const;
+
+        /// @brief Get camera calibration directory for the currently opened camera, it uses
+        /// @param createDirectories If true, the method will create the directory if it's not existing in the filesystem.
+        /// @return Path to the calibration
+        fs::path getCameraCalibrationDirectory(bool createDirectories = true) const;
+
+        /// Handler for the camera synchronization service.
+        /// @param request_header Request header.
+        /// @param req       Synchronization request.
+        /// @param rsp       Synchronization response.
+        void synchronizeCamera(const std::shared_ptr<rmw_request_id_t> request_header,
+                               const std::shared_ptr<dv_ros2_msgs::srv::SynchronizeCamera::Request> req,
+                               std::shared_ptr<dv_ros2_msgs::srv::SynchronizeCamera::Response> rsp);
+
+        
+        /// @brief A blocking call that waits until all devices in `mParams.syncDeviceList` is online and discovered over
+        ///        the /dvs/discovery topic.
+        /// @return A map of devices, where key is the camera name and value is the name of synchronization service.
+        [[nodiscard]] std::map<std::string, std::string> discoverSyncDevices() const;
+
+        /// @brief Send synchronization calls to the list of devices. This function distributes the timestamp offset to the
+        ///        given devices over synchronization service calls. The list of devices should be retrieved by
+        ///        `discoverSyncDevices` call.
+        /// @param serviceNames  List of devices to synchronize.
+        /// @sa Capture::discoverSyncDevices
+        void sendSyncCalls(const std::map<std::string, std::string> &serviceNames) const;
+
+        /// @brief rclcpp node variable
         rclcpp::Node::SharedPtr m_node;
 
         /// @brief Timer for continous callback
@@ -142,9 +207,6 @@ namespace dv_ros2_capture
         /// @param syncServiceName name of the service to be used for synchronization
         void runDiscovery(const std::string &syncServiceName); 
 
-        /// @brief A blocking call that waits until all devices in 
-        std::map<std::string, std::string> discoverSyncDevices() const;
-
         /// @brief Synchronization Thread
         void synchronizationThread();
 
@@ -161,6 +223,5 @@ namespace dv_ros2_capture
         void eventsPublisher();
 
         void triggerPublisher();
-
     };
 } // namespace dv_ros2_capture

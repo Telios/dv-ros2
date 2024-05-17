@@ -26,7 +26,7 @@ namespace dv_ros2_capture
         {
             m_reader = Reader(m_params.aedat4FilePath, m_params.cameraName);
         }
-        // startupTime = rclcpp::Time::now();
+        startup_time = m_node->now();
 
         if (m_params.frames && !m_reader.isFrameStreamAvailable())
         {
@@ -359,6 +359,132 @@ namespace dv_ros2_capture
 
     }
 
+    sensor_msgs::msg::Imu Capture::transformImuFrame(sensor_msgs::msg::Imu &&imu)
+    {
+        if (m_params.unbiasedImuData)
+        {
+            imu.linear_acceleration.x -= m_acc_biases.x();
+            imu.linear_acceleration.y -= m_acc_biases.y();
+            imu.linear_acceleration.z -= m_acc_biases.z();
+
+            imu.angular_velocity.x -= m_gyro_biases.x();
+            imu.angular_velocity.y -= m_gyro_biases.y();
+            imu.angular_velocity.z -= m_gyro_biases.z();
+        }
+        if (m_params.transformImuToCameraFrame)
+        {
+            const Eigen::Vector3<double> resW 
+                = m_imu_to_cam_transform.rotatePoint<Eigen::Vector3<double>>(imu.angular_velocity);
+            imu.angular_velocity.x = resW.x();
+            imu.angular_velocity.y = resW.y();
+            imu.angular_velocity.z = resW.z();
+
+            const Eigen::Vector3<double> resV
+                = m_imu_to_cam_transform.rotatePoint<Eigen::Vector3<double>>(imu.linear_acceleration);
+            imu.linear_acceleration.x = resV.x();
+            imu.linear_acceleration.y = resV.y();
+            imu.linear_acceleration.z = resV.z();
+        }
+        return imu;
+    }
+    
+    void Capture::updateCalibrationSet()
+    {
+        RCLCPP_INFO(m_node->get_logger(), "Updating calibration set...");
+        const std::string cameraName = m_reader.getCameraName();
+        dv::camera::calibrations::CameraCalibration calib;
+        bool calibrationExists = false;
+        if (auto camCalibration = m_calibration.getCameraCalibrationByName(cameraName); camCalibration.has_value()) 
+        {
+            calib             = *camCalibration;
+            calibrationExists = true;
+        }
+        else 
+        {
+            calib.name = cameraName;
+        }
+        calib.resolution = cv::Size(static_cast<int>(m_camera_info_msg.width), static_cast<int>(m_camera_info_msg.height));
+        calib.distortion.clear();
+        calib.distortion.assign(m_camera_info_msg.d.begin(), m_camera_info_msg.d.end());
+        if (static_cast<std::string>(m_camera_info_msg.distortion_model) == sensor_msgs::distortion_models::PLUMB_BOB) 
+        {
+            calib.distortionModel = dv::camera::DistortionModel::RadTan;
+        }
+        else if (static_cast<std::string>(m_camera_info_msg.distortion_model) == sensor_msgs::distortion_models::EQUIDISTANT) 
+        {
+            calib.distortionModel = dv::camera::DistortionModel::Equidistant;
+        }
+        else 
+        {
+            throw dv::exceptions::InvalidArgument<sensor_msgs::msg::CameraInfo::_distortion_model_type>(
+                "Unknown camera model.", m_camera_info_msg.distortion_model);
+        }
+        calib.focalLength = cv::Point2f(static_cast<float>(m_camera_info_msg.k[0]), static_cast<float>(m_camera_info_msg.k[4]));
+        calib.principalPoint
+            = cv::Point2f(static_cast<float>(m_camera_info_msg.k[2]), static_cast<float>(m_camera_info_msg.k[5]));
+
+        calib.transformationToC0 = {1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f};
+
+        if (calibrationExists) 
+        {
+            m_calibration.updateCameraCalibration(calib);
+        }
+        else 
+        {
+            m_calibration.addCameraCalibration(calib);
+        }
+
+        dv::camera::calibrations::IMUCalibration imuCalibration;
+        bool imuCalibrationExists = false;
+        if (auto imuCalib = m_calibration.getImuCalibrationByName(cameraName); imuCalib.has_value()) 
+        {
+            imuCalibration       = *imuCalib;
+            imuCalibrationExists = true;
+        }
+        else 
+        {
+            imuCalibration.name = cameraName;
+        }
+        bool imuHasValues = false;
+        if ((m_imu_to_cam_transforms.has_value() && !m_imu_to_cam_transforms->transforms.empty())) 
+        {
+            const Eigen::Matrix4f mat         = m_imu_to_cam_transform.getTransform().transpose();
+            imuCalibration.transformationToC0 = std::vector<float>(mat.data(), mat.data() + mat.rows() * mat.cols());
+            imuHasValues                      = true;
+        }
+
+        if (!m_acc_biases.isZero()) 
+        {
+            imuCalibration.accOffsetAvg.x = m_acc_biases.x();
+            imuCalibration.accOffsetAvg.y = m_acc_biases.y();
+            imuCalibration.accOffsetAvg.z = m_acc_biases.z();
+            imuHasValues                  = true;
+        }
+
+        if (!m_gyro_biases.isZero()) 
+        {
+            imuCalibration.omegaOffsetAvg.x = m_gyro_biases.x();
+            imuCalibration.omegaOffsetAvg.y = m_gyro_biases.y();
+            imuCalibration.omegaOffsetAvg.z = m_gyro_biases.z();
+            imuHasValues                    = true;
+        }
+
+        if (m_imu_time_offset > 0) 
+        {
+            imuCalibration.timeOffsetMicros = m_imu_time_offset;
+            imuHasValues                    = true;
+        }
+
+        if (imuCalibrationExists) 
+        {
+            m_calibration.updateImuCalibration(imuCalibration);
+        }
+        else if (imuHasValues) 
+        {
+            m_calibration.addImuCalibration(imuCalibration);
+        }
+    }
+
     void Capture::startCapture()
     {
         RCLCPP_INFO(m_node->get_logger(), "Spinning capture node...");
@@ -366,7 +492,7 @@ namespace dv_ros2_capture
 
         const auto &live_capture = m_reader.getCameraCapturePtr();
 
-        if (!live_capture)  //TODO: alter to live_capture
+        if (live_capture)
         {
             m_synchronized = false;
             m_sync_thread = std::thread(&Capture::synchronizationThread, this);
@@ -403,73 +529,32 @@ namespace dv_ros2_capture
 
         if (m_params.events || m_params.frames) 
         {
+            RCLCPP_INFO(m_node->get_logger(), "Spinning camera info thread.");
             m_camera_info_thread = std::make_unique<std::thread>([this] 
             {
                 rclcpp::Rate infoRate(25.0);
                 while (m_spin_thread.load(std::memory_order_relaxed))
                 {
-                    // TODO: publish camera info
+                    const rclcpp::Time currentTime = dv_ros2_msgs::toRosTime(m_current_seek);
+                    if (m_camera_info_publisher->get_subscription_count() > 0)
+                    {
+                        m_camera_info_msg.header.stamp = currentTime;
+                        m_camera_info_publisher->publish(m_camera_info_msg);
+                    }
+                    if (m_imu_to_cam_transforms.has_value() && !m_imu_to_cam_transforms->transforms.empty())
+                    {
+                        m_imu_to_cam_transforms->transforms.back().header.stamp = currentTime;
+                        m_transform_publisher->publish(*m_imu_to_cam_transforms);
+                    }
+                    infoRate.sleep();
                 }
-                infoRate.sleep();
-
             });
-
         }
-
-
-
     }
 
     bool Capture::isRunning() const
     {
         return m_spin_thread.load(std::memory_order_relaxed);
-    }
-
-    void Capture::synchronizationThread()
-    {
-        /*
-        std::string serviceName;
-        const auto &liveCapture = m_reader.getCameraCapturePtr();
-        if (liveCapture->isMasterCamera()) 
-        {
-            // Wait for all cameras to show up
-            const auto syncServiceList = discoverSyncDevices();
-            runDiscovery(serviceName);
-            sendSyncCalls(syncServiceList);
-            mSynchronized = true;
-        }
-        else 
-        {
-            mSyncServerService = std::make_unique<ros::ServiceServer>(mNodeHandle->advertiseService(
-                fmt::format("{}/sync", liveCapture->getCameraName()), &Capture::synchronizeCamera, this));
-
-            serviceName = mSyncServerService->getService();
-            runDiscovery(serviceName);
-
-            // Wait for synchronization only if explicitly requested
-            if (!mParams.waitForSync) 
-            {
-                mSynchronized = true;
-            }
-
-            size_t iterations = 0;
-            while (mSpinThread.load(std::memory_order_relaxed)) {
-                std::this_thread::sleep_for(1ms);
-
-                // Do not print warnings if it's synchronized
-                if (mSynchronized.load(std::memory_order_relaxed)) {
-                    continue;
-                }
-
-                if (iterations > 2000) {
-                    ROS_WARN_STREAM("[" << liveCapture->getCameraName() << "] Waiting for synchronization service call...");
-                    iterations = 0;
-                }
-                iterations++;
-            }
-        }
-        */
-
     }
 
     void Capture::clock(int64_t start, int64_t end, int64_t timeIncrement)
@@ -520,6 +605,216 @@ namespace dv_ros2_capture
 
     }
 
+    void Capture::runDiscovery(const std::string &syncServiceName)
+    {
+        const auto &liveCapture = m_reader.getCameraCapturePtr();
+
+        if (liveCapture == nullptr)
+        {
+            return;
+        }
+
+        m_discovery_publisher = m_node->create_publisher<dv_ros2_msgs::msg::CameraDiscovery>("/dvs/discovery", 10);
+        m_discovery_thread = std::make_unique<std::thread>([this, &liveCapture, &syncServiceName] 
+        {
+            dv_ros2_msgs::msg::CameraDiscovery message;
+            message.is_master = liveCapture->isMasterCamera();
+            message.name = liveCapture->getCameraName();
+            message.startup_time = startup_time;
+            message.publishing_events = m_params.events;
+            message.publishing_frames = m_params.frames;
+            message.publishing_imu = m_params.imu;
+            message.publishing_triggers = m_params.triggers;
+            message.sync_service_topic = syncServiceName;
+            // 5 Hz is enough
+            rclcpp::Rate rate(5.0);
+            while (m_spin_thread)
+            {
+                if (m_discovery_publisher->get_subscription_count() > 0)
+                {
+                    // message.header.seq++; seq removed in ROS2
+                    message.header.stamp = m_node->now();
+                    m_discovery_publisher->publish(message);
+                }
+                rate.sleep();
+            }
+        });
+    }
+
+    std::map<std::string, std::string> Capture::discoverSyncDevices() const 
+    {
+        if (m_params.syncDeviceList.empty()) 
+        {
+            return {};
+        }
+
+        RCLCPP_INFO_STREAM(m_node->get_logger(), "Waiting for devices [" << fmt::format("{}", fmt::join(m_params.syncDeviceList, ", ")) << "] to be online...");
+
+        // List info about each sync device
+        struct DiscoveryContext 
+        {
+            std::map<std::string, std::string> serviceNames;
+            std::atomic<bool> complete;
+            std::vector<std::string> deviceList;
+
+            void handleMessage(const dv_ros2_msgs::msg::CameraDiscovery::SharedPtr message) 
+            {
+                const std::string cameraName(message->name.c_str());
+                if (serviceNames.contains(cameraName)) 
+                {
+                    return;
+                }
+
+                if (std::find(deviceList.begin(), deviceList.end(), cameraName) != deviceList.end()) 
+                {
+                    serviceNames.insert(std::make_pair(cameraName, message->sync_service_topic.c_str()));
+                    if (serviceNames.size() == deviceList.size()) 
+                    {
+                        complete = true;
+                    }
+                }
+            }
+        };
+
+        DiscoveryContext context;
+        context.deviceList = m_params.syncDeviceList;
+        context.complete   = false;
+
+        auto subscriber = m_node->create_subscription<dv_ros2_msgs::msg::CameraDiscovery>("/dvs/discovery", 10, std::bind(&DiscoveryContext::handleMessage, &context, std::placeholders::_1));
+
+        while (m_spin_thread.load(std::memory_order_relaxed) && !context.complete.load(std::memory_order_relaxed)) 
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+
+        RCLCPP_INFO(m_node->get_logger(), "All sync devices are online.");
+
+        return context.serviceNames;
+    }
+
+    void Capture::sendSyncCalls(const std::map<std::string, std::string> &serviceNames) const
+    {
+        if (serviceNames.empty()) 
+        {
+            return;
+        }
+
+        const auto &liveCapture = m_reader.getCameraCapturePtr();
+        if (!liveCapture) 
+        {
+            return;
+        }
+
+        auto request = std::make_shared<dv_ros2_msgs::srv::SynchronizeCamera::Request>();
+        request->timestamp_offset = liveCapture->getTimestampOffset();
+        request->master_camera_name = liveCapture->getCameraName();
+
+        for (const auto &[cameraName, serviceName] : serviceNames) 
+        {
+            if (serviceName.empty())
+            {
+                RCLCPP_ERROR_STREAM(m_node->get_logger(), "Camera [" << cameraName
+                                            << "] can't be synchronized, synchronization service "
+                                            "is unavailable, please check synchronization cable!");
+                continue;
+            }
+
+            rclcpp::Client<dv_ros2_msgs::srv::SynchronizeCamera>::SharedPtr client = m_node->create_client<dv_ros2_msgs::srv::SynchronizeCamera>(serviceName);
+            client->wait_for_service(std::chrono::seconds(1));
+            auto result = client->async_send_request(request);
+            if (rclcpp::spin_until_future_complete(m_node, result) == rclcpp::FutureReturnCode::SUCCESS)
+            {
+                RCLCPP_INFO_STREAM(m_node->get_logger(), "Camera [" << cameraName << "] is synchronized.");
+            }
+            else
+            {
+                RCLCPP_ERROR_STREAM(m_node->get_logger(), "Device [" << cameraName
+                                            << "] failed to synchronize on service [" << serviceName << "]");
+            }
+        }   
+    }
+
+    void Capture::synchronizeCamera(const std::shared_ptr<rmw_request_id_t> request_header, 
+                                    const std::shared_ptr<dv_ros2_msgs::srv::SynchronizeCamera::Request> req,
+                                    std::shared_ptr<dv_ros2_msgs::srv::SynchronizeCamera::Response> rsp)
+    {
+        (void)request_header;
+        RCLCPP_INFO_STREAM(m_node->get_logger(), "Synchronization request received from [" << req->master_camera_name << "]");
+
+        // assume failure case
+        rsp->success = false;
+
+        auto &liveCapture = m_reader.getCameraCapturePtr();
+        if (!liveCapture) 
+        {
+            RCLCPP_WARN(m_node->get_logger(), "Received synchronization request on a non-live camera!");
+            //return true;
+        }
+        if (liveCapture->isConnected() && liveCapture->isMasterCamera()) 
+        {
+            // Update the timestamp offset
+            liveCapture->setTimestampOffset(req->timestamp_offset);
+            RCLCPP_INFO_STREAM(m_node->get_logger(), "Camera [" << liveCapture->getCameraName() << "] synchronized: timestamp offset updated.");
+            rsp->camera_name = liveCapture->getCameraName();
+            rsp->success = true;
+            m_synchronized = true;
+        }
+        else
+        {
+            RCLCPP_WARN(m_node->get_logger(), "Received synchronization request on a master camera, please check synchronization cable!");
+        }
+        //return true;
+    }
+
+    void Capture::synchronizationThread()
+    {
+        RCLCPP_INFO(m_node->get_logger(), "Spinning synchronization thread.");
+        std::string serviceName;
+        const auto &liveCapture = m_reader.getCameraCapturePtr();
+        if (liveCapture->isMasterCamera()) 
+        {
+            RCLCPP_INFO_STREAM(m_node->get_logger(), "Camera [" << liveCapture->getCameraName() << "] is master camera.");
+            // Wait for all cameras to show up
+            const auto syncServiceList = discoverSyncDevices();
+            runDiscovery(serviceName);
+            sendSyncCalls(syncServiceList);
+            m_synchronized = true;
+        }
+        else 
+        {
+            auto server_service = m_node->create_service<dv_ros2_msgs::srv::SynchronizeCamera>(fmt::format("{}/sync", liveCapture->getCameraName()), std::bind(&Capture::synchronizeCamera, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+
+            serviceName = server_service->get_service_name();
+            runDiscovery(serviceName);
+
+            // Wait for synchronization only if explicitly requested
+            if (m_params.waitForSync)
+            {
+                m_synchronized = true;
+            }
+
+            size_t iterations = 0;
+            while (m_spin_thread.load(std::memory_order_relaxed))
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+
+                // Do not print warnings if it's synchronized
+                if (m_synchronized.load(std::memory_order_relaxed))
+                {
+                    continue;
+                }
+
+                if (iterations > 2000)
+                {
+                    RCLCPP_WARN(m_node->get_logger(), "[%s] waiting for synchronization service call...", liveCapture->getCameraName().c_str());
+                    iterations = 0;
+                }
+                iterations++;
+            }
+        }
+
+    }
+
     void Capture::framePublisher()
     {
         RCLCPP_INFO(m_node->get_logger(), "Spinning frame publisher.");
@@ -539,16 +834,59 @@ namespace dv_ros2_capture
                 {
                     if (m_frame_publisher->get_subscription_count() > 0)
                     {
-                        // TODO: publish frame from dv::Frame to ROS msg port dv-ros-messaging package
+                        auto msg = dv_ros2_msgs::frameToRosImageMessage(*frame);
+                        m_frame_publisher->publish(msg);
                     }
+
+                    m_current_seek = frame->timestamp;
+
+                    std::lock_guard<boost::recursive_mutex> lockGuard(m_reader_mutex);
+                    frame = m_reader.getNextFrame();
                 }
             });
+            std::this_thread::sleep_for(std::chrono::microseconds(100));
         }
     }
 
     void Capture::imuPublisher()
     {
         RCLCPP_INFO(m_node->get_logger(), "Spinning imu publisher.");
+
+        std::optional<dv::cvector<dv::IMU>> imuData = std::nullopt;
+
+        while(m_spin_thread)
+        {
+            m_imu_queue.consume_all([&](const int64_t timestamp)
+            {
+                if (!imuData.has_value())
+                {
+                    std::lock_guard<boost::recursive_mutex> lockGuard(m_reader_mutex);
+                    imuData = m_reader.getNextImuBatch();
+                }
+                while (imuData.has_value() && !imuData->empty() && timestamp >= imuData->back().timestamp)
+                {
+                    if (m_imu_publisher->get_subscription_count() > 0)
+                    {
+                        for (auto &imu : *imuData)
+                        {
+                            imu.timestamp += m_imu_time_offset;
+                            m_imu_publisher->publish(transformImuFrame(dv_ros2_msgs::toRosImuMessage(imu)));
+                        }
+                    }
+                    m_current_seek = imuData->back().timestamp;
+
+                    std::lock_guard<boost::recursive_mutex> lockGuard(m_reader_mutex);
+                    imuData = m_reader.getNextImuBatch();
+                }
+
+                // If value present but empty, we don't want to keep it for later spins.
+                if (imuData.has_value() && imuData->empty())
+                {
+                    imuData = std::nullopt;
+                }
+            });
+            std::this_thread::sleep_for(std::chrono::microseconds(100));
+        }
     }
 
     void Capture::eventsPublisher()
@@ -604,6 +942,41 @@ namespace dv_ros2_capture
     void Capture::triggerPublisher()
     {
         RCLCPP_INFO(m_node->get_logger(), "Spinning trigger publisher.");
+
+        std::optional<dv::cvector<dv::Trigger>> triggerData = std::nullopt;
+
+        while (m_spin_thread)
+        {
+            m_trigger_queue.consume_all([&](const int64_t timestamp)
+            {
+                if (!triggerData.has_value())
+                {
+                    std::lock_guard<boost::recursive_mutex> lockGuard(m_reader_mutex);
+                    triggerData = m_reader.getNextTriggerBatch();
+                }
+                while (triggerData.has_value() && !triggerData->empty() && timestamp >= triggerData->back().timestamp)
+                {
+                    if (m_trigger_publisher->get_subscription_count() > 0)
+                    {
+                        for (const auto &trigger : *triggerData)
+                        {
+                            m_trigger_publisher->publish(dv_ros2_msgs::toRosTriggerMessage(trigger));
+                        }
+                    }
+                    m_current_seek = triggerData->back().timestamp;
+
+                    std::lock_guard<boost::recursive_mutex> lockGuard(m_reader_mutex);
+                    triggerData = m_reader.getNextTriggerBatch();
+                }
+
+                // If value present but empty, we don't want to keep it for later spins.
+                if (triggerData.has_value() && triggerData->empty())
+                {
+                    triggerData = std::nullopt;
+                }
+            });
+            std::this_thread::sleep_for(std::chrono::microseconds(100));
+        }
     }
 
 
