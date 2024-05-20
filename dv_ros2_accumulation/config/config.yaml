@@ -1,0 +1,24 @@
+dv_ros2_accumulation:
+  ros__parameters:
+    # Time in ms to accumulate events over [1,1000]
+    accumulation_time: 33
+    # Number of events to accumulate for a frame [1000,10000000]
+    accumulation_number: 100000
+    # Decay at frame generation time 
+    synchronous_decay: false
+    # Value at which to clip the integration [0.0,1.0]
+    min_potential: 0.0
+    # Value at which to clip the integration [0.0,1.0]
+    max_potential: 1.0
+    # Value to which the decay tends over time [0.0,1.0]
+    neutral_potential: 0.0
+    # The contribution of a single event [0.0,1.0]
+    event_contribution: 0.15
+    # All events have positive contribution 
+    rectify_polarity: false
+    # Slope for linear decay, tau for  exponential decay, time for    step decay [0.0,1e+10]
+    decay_param: 1000000.0
+    # Method to slice the accumulation [TIME, NUMBER] (0, 1)
+    slice_method: 1
+    # Decay function to use [NONE, LINEAR, EXPONENTIAL, STEP] (0,   1, 2, 3)
+    decay_function: 1

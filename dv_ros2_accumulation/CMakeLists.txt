@@ -12,8 +12,9 @@ find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(dv_ros2_msgs REQUIRED)
+find_package(dv_ros2_messaging REQUIRED)
 
-set(dependencies "sensor_msgs" "rclcpp" "geometry_msgs" "std_msgs" "dv_ros2_msgs")
+set(dependencies "sensor_msgs" "rclcpp" "geometry_msgs" "std_msgs" "dv_ros2_msgs" "dv_ros2_messaging")
 
 include_directories(include())
 
@@ -26,18 +27,22 @@ add_executable(${PROJECT_NAME}_node
   src/Accumulator.cpp
   )
 
+ADD_SUBDIRECTORY(../dv-processing ../dv-processing EXCLUDE_FROM_ALL)
+
 ament_target_dependencies(${PROJECT_NAME}_core ${dependencies})
 ament_target_dependencies(${PROJECT_NAME}_node ${dependencies})
 
-target_link_libraries(${PROJECT_NAME}_core ${catkin_LIBRARIES})
+target_link_libraries(${PROJECT_NAME}_core ${catkin_LIBRARIES} dv::processing)
 
 target_link_libraries(${PROJECT_NAME}_node 
   ${PROJECT_NAME}_core
   ${catkin_LIBRARIES}
+  dv::processing
   )
 
 install(DIRECTORY
   launch
+  config
   DESTINATION share/${PROJECT_NAME}
   )
 

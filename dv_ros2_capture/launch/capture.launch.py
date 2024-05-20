@@ -5,8 +5,6 @@ import os, yaml
 
 def generate_launch_description():
     package_name = 'dv_ros2_capture'
-    # read parameters from yaml file
-    # config = yaml.safe_load(open(
     config_path = os.path.join(get_package_share_directory(package_name), 'config', 'config.yaml')
 
     node_name = f'{package_name}_node'
