@@ -63,7 +63,8 @@ namespace dv_ros2_capture
 
         std::vector<std::string> syncDeviceList;
         bool waitForSync = false;
-        float rate = 1.0;
+        bool globalHold = false;
+        int biasSensitivity = 2;
     };
 
     class Capture : public rclcpp::Node
@@ -101,7 +102,11 @@ namespace dv_ros2_capture
         rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr m_imu_publisher;
         rclcpp::Publisher<dv_ros2_msgs::msg::CameraDiscovery>::SharedPtr m_discovery_publisher;
         rclcpp::Publisher<tf2_msgs::msg::TFMessage>::SharedPtr m_transform_publisher;
-        
+
+        rclcpp::Service<sensor_msgs::srv::SetCameraInfo>::SharedPtr m_set_camera_info_service;
+        rclcpp::Service<dv_ros2_msgs::srv::SetImuInfo>::SharedPtr m_set_imu_info_service;
+        rclcpp::Service<dv_ros2_msgs::srv::SetImuBiases>::SharedPtr m_set_imu_biases_service;
+
         std::unique_ptr<dv::noise::BackgroundActivityNoiseFilter<>> m_noise_filter = nullptr;
         
         /// Threads related
@@ -196,6 +201,11 @@ namespace dv_ros2_capture
         /// @param createDirectories If true, the method will create the directory if it's not existing in the filesystem.
         /// @return Path to the calibration
         fs::path getCameraCalibrationDirectory(bool createDirectories = true) const;
+
+        /// @brief Update background noise filter.
+        /// @param enable Enable or disable the noise filter.
+        /// @param backgroundActivityTime Time in milliseconds to consider a pixel as active.
+        void updateNoiseFilter(const bool enable, const int64_t backgroundActivityTime);
 
         /// Handler for the camera synchronization service.
         /// @param request_header Request header.

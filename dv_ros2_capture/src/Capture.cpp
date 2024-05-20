@@ -66,11 +66,10 @@ namespace dv_ros2_capture
             m_imu_publisher = m_node->create_publisher<sensor_msgs::msg::Imu>("camera/imu", 10);
         }
         m_camera_info_publisher = m_node->create_publisher<sensor_msgs::msg::CameraInfo>("camera/camera_info", 10);
-        m_node->create_service<dv_ros2_msgs::srv::SetImuBiases>("set_imu_biases", std::bind(&Capture::setImuBiases, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-        m_node->create_service<dv_ros2_msgs::srv::SetImuInfo>("set_imu_info", std::bind(&Capture::setImuInfo, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
-        m_node->create_service<sensor_msgs::srv::SetCameraInfo>("set_camera_info", std::bind(&Capture::setCameraInfo, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+        m_set_imu_biases_service = m_node->create_service<dv_ros2_msgs::srv::SetImuBiases>("set_imu_biases", std::bind(&Capture::setImuBiases, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+        m_set_imu_info_service= m_node->create_service<dv_ros2_msgs::srv::SetImuInfo>("set_imu_info", std::bind(&Capture::setImuInfo, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+        m_set_camera_info_service = m_node->create_service<sensor_msgs::srv::SetCameraInfo>("set_camera_info", std::bind(&Capture::setCameraInfo, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
-        // TODO camera calibration
         fs::path calibrationPath = getActiveCalibrationPath();
         if (!m_params.cameraCalibrationFilePath.empty())
         {
@@ -168,8 +167,10 @@ namespace dv_ros2_capture
             if (camera_ptr->isFrameStreamAvailable()) 
             {
                 // DAVIS camera
-
                 // TODO: dynamic reconfigure
+                                camera_ptr->setDVSGlobalHold(m_params.globalHold);
+                camera_ptr->setDVSBiasSensitivity(static_cast<dv::io::CameraCapture::BiasSensitivity>(m_params.biasSensitivity));
+                updateNoiseFilter(m_params.noiseFiltering, static_cast<int64_t>(m_params.noiseBATime));
 
                 if (camera_ptr->isTriggerStreamAvailable()) {
                     // External trigger detection support for DAVIS346 - MODIFY HERE FOR DIFFERENT DETECTION SETTINGS!
@@ -183,6 +184,9 @@ namespace dv_ros2_capture
                 // DVXplorer type camera
                 
                 // TODO: dynamic reconfigure
+                camera_ptr->setDVSGlobalHold(m_params.globalHold);
+                camera_ptr->setDVSBiasSensitivity(static_cast<dv::io::CameraCapture::BiasSensitivity>(m_params.biasSensitivity));
+                updateNoiseFilter(m_params.noiseFiltering, static_cast<int64_t>(m_params.noiseBATime));
 
                 if (camera_ptr->isTriggerStreamAvailable()) {
                     // External trigger detection support for DVXplorer - MODIFY HERE FOR DIFFERENT DETECTION SETTINGS!
@@ -263,7 +267,8 @@ namespace dv_ros2_capture
         m_node->declare_parameter("noise_ba_time", m_params.noiseBATime);
         m_node->declare_parameter("sync_device_list", m_params.syncDeviceList);
         m_node->declare_parameter("wait_for_sync", m_params.waitForSync);
-        m_node->declare_parameter("rate", m_params.rate);
+        m_node->declare_parameter("global_hold", m_params.globalHold);
+        m_node->declare_parameter("bias_sensitivity", m_params.biasSensitivity);
     }
 
     inline void Capture::parameterPrinter() const
@@ -289,7 +294,8 @@ namespace dv_ros2_capture
             RCLCPP_INFO(m_node->get_logger(), "  %s", device.c_str());
         }
         RCLCPP_INFO(m_node->get_logger(), "wait_for_sync: %s", m_params.waitForSync ? "true" : "false");
-        RCLCPP_INFO(m_node->get_logger(), "rate: %f", m_params.rate);
+        RCLCPP_INFO(m_node->get_logger(), "global_hold: %s", m_params.globalHold ? "true" : "false");
+        RCLCPP_INFO(m_node->get_logger(), "bias_sensitivity: %d", m_params.biasSensitivity);
     }
 
     inline bool Capture::readParameters()
@@ -374,9 +380,14 @@ namespace dv_ros2_capture
             RCLCPP_ERROR(m_node->get_logger(), "Failed to read parameter wait_for_sync");
             return false;
         }
-        if (!m_node->get_parameter("rate", m_params.rate))
+        if (!m_node->get_parameter("global_hold", m_params.globalHold))
         {
-            RCLCPP_ERROR(m_node->get_logger(), "Failed to read parameter rate");
+            RCLCPP_ERROR(m_node->get_logger(), "Failed to read parameter global_hold");
+            return false;
+        }
+        if (!m_node->get_parameter("bias_sensitivity", m_params.biasSensitivity))
+        {
+            RCLCPP_ERROR(m_node->get_logger(), "Failed to read parameter biasSensitivity");
             return false;
         }
         return true;
@@ -885,6 +896,27 @@ namespace dv_ros2_capture
 
         fs::copy_file(calibPath, getActiveCalibrationPath(), fs::copy_options::overwrite_existing);
         return calibPath;
+    }
+
+    void Capture::updateNoiseFilter(const bool enable, const int64_t backgroundActivityTime)
+    {
+        if (enable)
+        {
+            // Create the filter and return
+            if (m_noise_filter == nullptr)
+            {
+                m_noise_filter = std::make_unique<dv::noise::BackgroundActivityNoiseFilter<>>(m_reader.getEventResolution().value(), dv::Duration(backgroundActivityTime));
+                return;
+            }
+
+            // Noise filter is instantiated, just update the period
+            m_noise_filter->setBackgroundActivityDuration(dv::Duration(backgroundActivityTime));
+        }
+        else
+        {
+            // Destroy the filter
+            m_noise_filter = nullptr;
+        }
     }
 
     void Capture::sendSyncCalls(const std::map<std::string, std::string> &serviceNames) const
