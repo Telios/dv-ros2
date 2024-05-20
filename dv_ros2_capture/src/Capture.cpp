@@ -66,30 +66,101 @@ namespace dv_ros2_capture
             m_imu_publisher = m_node->create_publisher<sensor_msgs::msg::Imu>("camera/imu", 10);
         }
         m_camera_info_publisher = m_node->create_publisher<sensor_msgs::msg::CameraInfo>("camera/camera_info", 10);
-
+        m_node->create_service<dv_ros2_msgs::srv::SetImuBiases>("set_imu_biases", std::bind(&Capture::setImuBiases, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+        m_node->create_service<dv_ros2_msgs::srv::SetImuInfo>("set_imu_info", std::bind(&Capture::setImuInfo, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
+        m_node->create_service<sensor_msgs::srv::SetCameraInfo>("set_camera_info", std::bind(&Capture::setCameraInfo, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
 
         // TODO camera calibration
+        fs::path calibrationPath = getActiveCalibrationPath();
+        if (!m_params.cameraCalibrationFilePath.empty())
+        {
+            RCLCPP_INFO_STREAM(m_node->get_logger(),"Loading user supplied calibration at path [" << m_params.cameraCalibrationFilePath << "]");
+            if (!fs::exists(m_params.cameraCalibrationFilePath))
+            {
+                throw dv::exceptions::InvalidArgument<std::string>("User supplied calibration file does not exist!", m_params.cameraCalibrationFilePath);
+            }
+            RCLCPP_INFO_STREAM(m_node->get_logger(), "Loading calibration data from [" << m_params.cameraCalibrationFilePath << "]");
+            fs::copy_file(m_params.cameraCalibrationFilePath, calibrationPath, fs::copy_options::overwrite_existing);
+        }
 
-        std::optional<cv::Size> resolution;
-        if (m_reader.isFrameStreamAvailable())
+        if (fs::exists(calibrationPath))
         {
-            resolution = m_reader.getFrameResolution();
-        }
-        else if (m_reader.isEventStreamAvailable())
-        {
-            resolution = m_reader.getEventResolution();
-        }
-        if (resolution.has_value())
-        {
-            const auto width = static_cast<float>(resolution->width);
-            populateInfoMsg(dv::camera::CameraGeometry(width, width, width * 0.5f, static_cast<float>(resolution->height) * 0.5f, *resolution));
-            // TODO: genrate calibration file
+            RCLCPP_INFO_STREAM(m_node->get_logger(), "Loading calibration data from [" << calibrationPath << "]");
+            m_calibration = dv::camera::CalibrationSet::LoadFromFile(calibrationPath);
+            const std::string cameraName = m_reader.getCameraName();
+            auto cameraCalibration = m_calibration.getCameraCalibrationByName(cameraName);
+            if (const auto &imuCalib = m_calibration.getImuCalibrationByName(cameraName); imuCalib.has_value())
+            {
+                m_transform_publisher = m_node->create_publisher<tf2_msgs::msg::TFMessage>("/tf", 100);
+                m_imu_time_offset == imuCalib->timeOffsetMicros;
+
+                geometry_msgs::msg::TransformStamped msg;
+                msg.header.frame_id = m_params.imuFrameName;
+                msg.child_frame_id = m_params.cameraFrameName;
+
+                m_imu_to_cam_transform = dv::kinematics::Transformationf(0, Eigen::Matrix<float, 4, 4, Eigen::RowMajor>(imuCalib->transformationToC0.data()));
+
+                m_acc_biases.x() = imuCalib->accOffsetAvg.x;
+                m_acc_biases.y() = imuCalib->accOffsetAvg.y;
+                m_acc_biases.z() = imuCalib->accOffsetAvg.z;
+
+                m_gyro_biases.x() = imuCalib->omegaOffsetAvg.x;
+                m_gyro_biases.y() = imuCalib->omegaOffsetAvg.y;
+                m_gyro_biases.z() = imuCalib->omegaOffsetAvg.z;
+
+                const auto translation = m_imu_to_cam_transform.getTranslation<Eigen::Vector3d>();
+                msg.transform.translation.x = translation.x();
+                msg.transform.translation.y = translation.y();
+                msg.transform.translation.z = translation.z();
+
+                const auto rotation = m_imu_to_cam_transform.getQuaternion();
+                msg.transform.rotation.x = rotation.x();
+                msg.transform.rotation.y = rotation.y();
+                msg.transform.rotation.z = rotation.z();
+                msg.transform.rotation.w = rotation.w();
+
+                m_imu_to_cam_transforms = tf2_msgs::msg::TFMessage();
+                m_imu_to_cam_transforms->transforms.push_back(msg);
+            }
+            if (cameraCalibration.has_value())
+            {
+                populateInfoMsg(cameraCalibration->getCameraGeometry());
+            }
+            else
+            {
+                RCLCPP_ERROR_STREAM(m_node->get_logger(), "Calibration in [" << calibrationPath << "] does not contain calibration for camera [" << cameraName << "]");
+                std::vector<std::string> names;
+                for (const auto &calib : m_calibration.getCameraCalibrations())
+                {
+                    names.push_back(calib.second.name);
+                }
+                const std::string nameString = fmt::format("{}", fmt::join(names, "; "));
+                RCLCPP_ERROR_STREAM(m_node->get_logger(), "The file only contains calibrations for these cameras: [" << nameString << "]");
+                throw std::runtime_error("Calibration is not available!");
+            }
         }
         else
         {
-            RCLCPP_ERROR(m_node->get_logger(), "Failed to get camera resolution");
-            rclcpp::shutdown();
-            std::exit(EXIT_FAILURE);
+            RCLCPP_WARN_STREAM(m_node->get_logger(), "[" << m_reader.getCameraName() << "] No calibration was found, assuming ideal pinhole (no distortion).");
+            std::optional<cv::Size> resolution;
+            if (m_reader.isFrameStreamAvailable())
+            {
+                resolution = m_reader.getFrameResolution();
+            }
+            else if (m_reader.isEventStreamAvailable())
+            {
+                resolution = m_reader.getEventResolution();
+            }
+            if (resolution.has_value())
+            {
+                const auto width = static_cast<float>(resolution->width);
+                populateInfoMsg(dv::camera::CameraGeometry(width, width, width * 0.5f, static_cast<float>(resolution->height) * 0.5f, *resolution));
+                generateActiveCalibrationFile();
+            }
+            else
+            {
+                throw std::runtime_error("Sensor resolution not available.");
+            }
         }
 
         auto &camera_ptr = m_reader.getCameraCapturePtr();
@@ -354,9 +425,6 @@ namespace dv_ros2_capture
         m_camera_info_msg.k = {fx, 0, cx, 0, fy, cy, 0, 0, 1};
         m_camera_info_msg.r = {1.0, 0, 0, 0, 1.0, 0, 0, 0, 1.0};
         m_camera_info_msg.p = {fx, 0, cx, 0, 0, fy, cy, 0, 0, 0, 1.0, 0};
-
-
-
     }
 
     sensor_msgs::msg::Imu Capture::transformImuFrame(sensor_msgs::msg::Imu &&imu)
@@ -690,6 +758,133 @@ namespace dv_ros2_capture
         RCLCPP_INFO(m_node->get_logger(), "All sync devices are online.");
 
         return context.serviceNames;
+    }
+
+    bool Capture::setCameraInfo(const std::shared_ptr<rmw_request_id_t> request_header,
+                               const std::shared_ptr<sensor_msgs::srv::SetCameraInfo::Request> req,
+                               std::shared_ptr<sensor_msgs::srv::SetCameraInfo::Response> rsp)
+    {
+        // Set camera info is usually called from a camera calibration pipeline.
+        (void)request_header;
+        m_camera_info_msg = req->camera_info;
+
+        try
+        {
+            auto calibPath = saveCalibration();
+            rsp->success = true;
+            rsp->status_message = fmt::format("Calibration stored successfully in [{}].", calibPath);
+        }
+        catch (const std::exception &e)
+        {
+            rsp->success = false;
+            rsp->status_message = fmt::format("Error storing camera calibration: [{}].", e.what());
+        }
+
+        return true;
+    }
+
+    bool Capture::setImuBiases(const std::shared_ptr<rmw_request_id_t> request_header,
+                               const std::shared_ptr<dv_ros2_msgs::srv::SetImuBiases::Request> req,
+                               std::shared_ptr<dv_ros2_msgs::srv::SetImuBiases::Response> rsp)
+    {
+        // Set Imu biases is called by a node that computes the biases. Hence,
+        // only the Imu biases are changed.
+        (void)request_header;
+
+        if (m_params.unbiasedImuData)
+        {
+            RCLCPP_ERROR(m_node->get_logger(), "Trying to set IMU biases on a camera capture node which publishes IMU data with biases subtracted.");
+            RCLCPP_ERROR(m_node->get_logger(), "The received biases will be ignored.");
+            rsp->success = false;
+            rsp->status_message = "Failed to apply IMU biases since biases are already applied.";
+            return false;
+        }
+
+        RCLCPP_INFO(m_node->get_logger(), "Setting IMU biases...");
+        m_acc_biases = Eigen::Vector3f(req->acc_biases.x, req->acc_biases.y, req->acc_biases.z);
+        m_gyro_biases = Eigen::Vector3f(req->gyro_biases.x, req->gyro_biases.y, req->gyro_biases.z);
+
+        try
+        {
+            saveCalibration();
+            rsp->success = true;
+            rsp->status_message = "IMU biases stored in calibration file.";
+            RCLCPP_INFO(m_node->get_logger(), "Unbiasing output IMU messages.");
+            m_params.unbiasedImuData = true;
+        }
+        catch (const std::exception &e)
+        {
+            rsp->success = false;
+            rsp->status_message = fmt::format("Error storing IMU biases calibration: [{}].", e.what());
+        }
+        return true;
+    }
+
+    bool Capture::setImuInfo(const std::shared_ptr<rmw_request_id_t> request_header,
+                            const std::shared_ptr<dv_ros2_msgs::srv::SetImuInfo::Request> req,
+                            std::shared_ptr<dv_ros2_msgs::srv::SetImuInfo::Response> rsp)
+    {
+        (void)request_header;
+        m_imu_time_offset = req->imu_info.time_offset_micros;
+        geometry_msgs::msg::TransformStamped stampedTransform;
+        stampedTransform.transform = req->imu_info.t_sc;
+        stampedTransform.header.frame_id = m_params.imuFrameName;
+        stampedTransform.child_frame_id = m_params.cameraFrameName;
+        m_imu_to_cam_transforms->transforms[0] = stampedTransform;
+
+        Eigen::Quaternion<float> q(static_cast<float>(stampedTransform.transform.rotation.w),
+                                   static_cast<float>(stampedTransform.transform.rotation.x),
+                                   static_cast<float>(stampedTransform.transform.rotation.y),
+                                   static_cast<float>(stampedTransform.transform.rotation.z));
+        m_imu_to_cam_transform = dv::kinematics::Transformationf(0, Eigen::Vector3f::Zero(), q);
+
+        try
+        {
+            auto calibPath = saveCalibration();
+            rsp->success = true;
+            rsp->status_message = fmt::format("IMU calibration stored successfully in [{}].", calibPath);
+        }
+        catch (const std::exception &e)
+        {
+            rsp->success = false;
+            rsp->status_message = fmt::format("Error storing IMU info: [{}].", e.what());
+        }
+       
+        return true;
+    }
+
+    fs::path Capture::getCameraCalibrationDirectory(const bool createDirectories) const
+    {
+        const fs::path directory = fmt::format("{0}/.dv_camera/camera_calibration/{1}", std::getenv("HOME"), m_reader.getCameraName());
+        if (createDirectories && !fs::exists(directory))
+        {
+            fs::create_directories(directory);
+        }
+        return directory;
+    }
+
+    fs::path Capture::getActiveCalibrationPath() const
+    {
+        return getCameraCalibrationDirectory() / "active_calibration.json";
+    }
+
+    void Capture::generateActiveCalibrationFile()
+    {
+        RCLCPP_INFO(m_node->get_logger(), "Generating active calibration file...");
+        updateCalibrationSet();
+        m_calibration.writeToFile(getActiveCalibrationPath());
+    }
+
+    fs::path Capture::saveCalibration()
+    {
+        auto date = fmt::format("{:%Y_%m_%d_%H_%M_%S}", dv::toTimePoint(dv::now()));
+        const std::string calibrationFileName = fmt::format("calibration_camera_{0}_{1}.json", m_reader.getCameraName(), date);
+        const fs::path calibPath = getCameraCalibrationDirectory() / calibrationFileName;
+        updateCalibrationSet();
+        m_calibration.writeToFile(calibPath);
+
+        fs::copy_file(calibPath, getActiveCalibrationPath(), fs::copy_options::overwrite_existing);
+        return calibPath;
     }
 
     void Capture::sendSyncCalls(const std::map<std::string, std::string> &serviceNames) const
