@@ -5,7 +5,7 @@ dv_ros2_accumulation:
     # Number of events to accumulate for a frame [1000,10000000]
     accumulation_number: 100000
     # Decay at frame generation time 
-    synchronous_decay: false
+    synchronous_decay: true
     # Value at which to clip the integration [0.0,1.0]
     min_potential: 0.0
     # Value at which to clip the integration [0.0,1.0]
@@ -25,6 +25,6 @@ dv_ros2_accumulation:
     # Mode of the accumulation [EDGE, FRAME]
     accumulation_mode: "FRAME"
     # Enable or disable linear decay
-    enable_decay: false
-    # Slope for linear decay, tau for  exponential decay, time for step decay [0.0, 1.0]
-    decay_edge: 0.1
+    enable_decay: true
+    # Slope for linear decay, tau for exponential decay, time for step decay [0.0, 1.0]
+    decay_edge: 0.2

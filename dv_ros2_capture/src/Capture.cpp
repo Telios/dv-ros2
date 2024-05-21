@@ -51,21 +51,21 @@ namespace dv_ros2_capture
 
         if (m_params.frames)
         {
-            m_frame_publisher = m_node->create_publisher<sensor_msgs::msg::Image>("camera/frame", 10);
+            m_frame_publisher = m_node->create_publisher<sensor_msgs::msg::Image>("frame", 10);
         }
         if (m_params.events)
         {
-            m_events_publisher = m_node->create_publisher<dv_ros2_msgs::msg::EventArray>("camera/events", 10);
+            m_events_publisher = m_node->create_publisher<dv_ros2_msgs::msg::EventArray>("events", 10);
         }
         if (m_params.triggers)
         {
-            m_trigger_publisher = m_node->create_publisher<dv_ros2_msgs::msg::Trigger>("camera/trigger", 10);
+            m_trigger_publisher = m_node->create_publisher<dv_ros2_msgs::msg::Trigger>("trigger", 10);
         }
         if (m_params.imu)
         {
-            m_imu_publisher = m_node->create_publisher<sensor_msgs::msg::Imu>("camera/imu", 10);
+            m_imu_publisher = m_node->create_publisher<sensor_msgs::msg::Imu>("imu", 10);
         }
-        m_camera_info_publisher = m_node->create_publisher<sensor_msgs::msg::CameraInfo>("camera/camera_info", 10);
+        m_camera_info_publisher = m_node->create_publisher<sensor_msgs::msg::CameraInfo>("camera_info", 10);
         m_set_imu_biases_service = m_node->create_service<dv_ros2_msgs::srv::SetImuBiases>("set_imu_biases", std::bind(&Capture::setImuBiases, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
         m_set_imu_info_service= m_node->create_service<dv_ros2_msgs::srv::SetImuInfo>("set_imu_info", std::bind(&Capture::setImuInfo, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
         m_set_camera_info_service = m_node->create_service<sensor_msgs::srv::SetCameraInfo>("set_camera_info", std::bind(&Capture::setCameraInfo, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3));
@@ -168,7 +168,7 @@ namespace dv_ros2_capture
             {
                 // DAVIS camera
                 // TODO: dynamic reconfigure
-                                camera_ptr->setDVSGlobalHold(m_params.globalHold);
+                camera_ptr->setDVSGlobalHold(m_params.globalHold);
                 camera_ptr->setDVSBiasSensitivity(static_cast<dv::io::CameraCapture::BiasSensitivity>(m_params.biasSensitivity));
                 updateNoiseFilter(m_params.noiseFiltering, static_cast<int64_t>(m_params.noiseBATime));
 
@@ -722,7 +722,7 @@ namespace dv_ros2_capture
 
     std::map<std::string, std::string> Capture::discoverSyncDevices() const 
     {
-        if (m_params.syncDeviceList.empty()) 
+        if (m_params.syncDeviceList.empty() || m_params.syncDeviceList[0] == "") 
         {
             return {};
         }

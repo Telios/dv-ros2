@@ -36,7 +36,7 @@ int main(int argc, char **argv)
             }); 
     auto framePublisher = vis_node->create_publisher<sensor_msgs::msg::Image>("image", 10);
 
-    slicer.doEveryTimeInterval(std::chrono::milliseconds(33), [&visualizer, &framePublisher](const dv::EventStore &events)
+    slicer.doEveryTimeInterval(std::chrono::milliseconds(10), [&visualizer, &framePublisher](const dv::EventStore &events)
     {
         if (visualizer != nullptr)
         {
