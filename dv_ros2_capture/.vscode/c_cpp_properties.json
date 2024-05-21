@@ -1,0 +1,29 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/prinlab/victor/ros2_ws/install/dv_ros2_capture/include/**",
+        "/home/prinlab/victor/ros2_ws/install/dv_ros2_accumulation/include/**",
+        "/home/prinlab/victor/ros2_ws/install/dv_ros2_messaging/include/**",
+        "/home/prinlab/victor/ros2_ws/install/dv_ros2_msgs/include/**",
+        "/opt/ros/humble/include/**",
+        "/home/prinlab/victor/ros2_ws/src/dv-ros2/dv-processing/include/**",
+        "/home/prinlab/victor/ros2_ws/src/dv-ros2/dv_ros2_accumulation/include/**",
+        "/home/prinlab/victor/ros2_ws/src/dv-ros2/dv_ros2_capture/include/**",
+        "/home/prinlab/victor/ros2_ws/src/dv-ros2/dv_ros2_messaging/include/**",
+        "/home/prinlab/victor/ros2_ws/src/dv-ros2/dv_ros2_visualization/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}

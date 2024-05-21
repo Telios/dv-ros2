@@ -1,0 +1,3 @@
+dv_ros2_visualization:
+  ros__parameters:
+    topic_name: "visualization_marker"

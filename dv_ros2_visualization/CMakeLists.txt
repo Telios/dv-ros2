@@ -11,6 +11,38 @@ find_package(dv_ros2_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(dv_ros2_messaging REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(rclcpp REQUIRED)
+
+set(dependencies "std_msgs" "sensor_msgs" "dv_ros2_msgs" "dv_ros2_messaging" "rclcpp")
+
+include_directories(include())
+
+file(GLOB_RECURSE SOURCES "src/*.cpp")
+
+add_library(${PROJECT_NAME}_core
+  ${SOURCES}
+)
+
+add_executable(${PROJECT_NAME}_node
+  src/visualization_node.cpp
+)
+
+ADD_SUBDIRECTORY(../dv-processing ../dv-processing EXCLUDE_FROM_ALL)
+
+ament_target_dependencies(${PROJECT_NAME}_core ${dependencies})
+ament_target_dependencies(${PROJECT_NAME}_node ${dependencies})
+
+target_link_libraries(${PROJECT_NAME}_core ${catkin_LIBRARIES} dv::processing)
+target_link_libraries(${PROJECT_NAME}_node ${PROJECT_NAME}_core ${catkin_LIBRARIES} dv::processing)
+
+install(DIRECTORY
+  launch
+  config
+  DESTINATION share/${PROJECT_NAME})
+
+install(TARGETS
+  ${PROJECT_NAME}_node
+  DESTINATION lib/${PROJECT_NAME})
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)

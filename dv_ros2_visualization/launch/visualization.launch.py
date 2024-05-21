@@ -18,6 +18,12 @@ def generate_launch_description():
     with open(cap_config_path, 'r') as file:
         cap_config = yaml.safe_load(file)[cap_package_name]['ros__parameters']
 
+    vis_package_name = 'dv_ros2_visualization'
+    vis_config_path = os.path.join(get_package_share_directory(vis_package_name), 'config', 'config.yaml')
+
+    vis_node_name = f'{vis_package_name}_node'
+    with open(vis_config_path, 'r') as file:
+        vis_config = yaml.safe_load(file)[vis_package_name]['ros__parameters']
     
     return LaunchDescription([
         Node(
@@ -33,6 +39,14 @@ def generate_launch_description():
             executable=cap_node_name,
             name=cap_node_name,
             parameters=[cap_config],
+            output='screen',
+            emulate_tty=True,
+        ),
+        Node(
+            package=vis_package_name,
+            executable=vis_node_name,
+            name=vis_node_name,
+            parameters=[vis_config],
             output='screen',
             emulate_tty=True,
         ),
