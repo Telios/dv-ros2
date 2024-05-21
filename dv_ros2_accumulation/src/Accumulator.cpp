@@ -44,11 +44,27 @@ namespace dv_ros2_accumulation
 
     void Accumulator::eventCallback(dv_ros2_msgs::msg::EventArray::SharedPtr events)
     {
-        if (m_accumulator == nullptr)
+        if (m_params.accumulation_mode == "FRAME")
         {
-            m_accumulator = std::make_unique<dv::Accumulator>(cv::Size(events->width, events->height));
-            updateConfiguration();
+            if (m_accumulator == nullptr)
+            {
+                m_accumulator = std::make_unique<dv::Accumulator>(cv::Size(events->width, events->height));
+                updateConfiguration();
+            }
         }
+        else if (m_params.accumulation_mode == "EDGE")
+        {
+            if (m_accumulator_edge == nullptr)
+            {
+                m_accumulator_edge = std::make_unique<dv::PixelAccumulator>(cv::Size(events->width, events->height));
+                updateConfiguration();
+            }
+        }
+        else
+        {
+            throw dv::exceptions::InvalidArgument<std::string>("Unknown accumulation mode", m_params.accumulation_mode);
+        }
+
         auto store = dv_ros2_msgs::toEventStore(*events);
 
         try
@@ -69,14 +85,37 @@ namespace dv_ros2_accumulation
 
     void Accumulator::updateConfiguration()
     {
-        m_accumulator->setEventContribution(m_params.event_contribution);
-        m_accumulator->setDecayParam(m_params.decay_param);
-        m_accumulator->setMinPotential(m_params.min_potential);
-        m_accumulator->setMaxPotential(m_params.max_potential);
-        m_accumulator->setNeutralPotential(m_params.neutral_potential);
-        m_accumulator->setRectifyPolarity(m_params.rectify_polarity);
-        m_accumulator->setSynchronousDecay(m_params.synchronous_decay);
-        m_accumulator->setDecayFunction(static_cast<dv::Accumulator::Decay>(m_params.decay_function));
+        if (m_params.accumulation_mode == "FRAME")
+        {
+            m_accumulator->setEventContribution(m_params.event_contribution);
+            m_accumulator->setDecayParam(m_params.decay_param);
+            m_accumulator->setMinPotential(m_params.min_potential);
+            m_accumulator->setMaxPotential(m_params.max_potential);
+            m_accumulator->setNeutralPotential(m_params.neutral_potential);
+            m_accumulator->setRectifyPolarity(m_params.rectify_polarity);
+            m_accumulator->setSynchronousDecay(m_params.synchronous_decay);
+            m_accumulator->setDecayFunction(static_cast<dv::Accumulator::Decay>(m_params.decay_function));
+        }
+        else if (m_params.accumulation_mode == "EDGE")
+        {
+            if (m_params.enable_decay)
+            {
+                m_accumulator_edge->setDecay(static_cast<float>(m_params.decay_edge));
+            }
+            else
+            {
+                m_accumulator_edge->setDecay(-1.f);
+            }
+            m_accumulator_edge->setIgnorePolarity(m_params.rectify_polarity);
+            m_accumulator_edge->setContribution(static_cast<float>(m_params.event_contribution));
+            m_accumulator_edge->setNeutralValue(static_cast<float>(m_params.neutral_potential));
+        }
+        else
+        {
+            throw dv::exceptions::InvalidArgument<std::string>("Unknown accumulation mode", m_params.accumulation_mode);
+        }
+
+
 
         switch (m_params.slice_method)
         {
@@ -103,12 +142,12 @@ namespace dv_ros2_accumulation
         
         while (m_spin_thread)
         {
-            if (m_accumulator != nullptr)
+            if (m_params.accumulation_mode == "FRAME" ? m_accumulator != nullptr : m_accumulator_edge != nullptr)
             {
                 m_event_queue.consume_all([&](const dv::EventStore &events)
                 {
-                    m_accumulator->accept(events);
-                    dv::Frame frame = m_accumulator->generateFrame();
+                    m_params.accumulation_mode == "FRAME" ? m_accumulator->accumulate(events) : m_accumulator_edge->accumulate(events);
+                    dv::Frame frame = m_params.accumulation_mode == "FRAME" ? m_accumulator->generateFrame() : m_accumulator_edge->generateFrame();
                     sensor_msgs::msg::Image msg = dv_ros2_msgs::toRosImageMessage(frame.image);
                     msg.header.stamp = dv_ros2_msgs::toRosTime(frame.timestamp);
                     m_frame_publisher->publish(msg);
@@ -142,6 +181,9 @@ namespace dv_ros2_accumulation
         m_node->declare_parameter("decay_param", m_params.decay_param);
         m_node->declare_parameter("slice_method", m_params.slice_method);
         m_node->declare_parameter("decay_function", m_params.decay_function);
+        m_node->declare_parameter("accumulation_mode", m_params.accumulation_mode);
+        m_node->declare_parameter("enable_decay", m_params.enable_decay);
+        m_node->declare_parameter("decay_edge", m_params.decay_edge);
     }
 
     inline void Accumulator::parameterPrinter() const
@@ -158,6 +200,10 @@ namespace dv_ros2_accumulation
         RCLCPP_INFO(m_node->get_logger(), "decay_param: %f", m_params.decay_param);
         RCLCPP_INFO(m_node->get_logger(), "slice_method: %d", m_params.slice_method);
         RCLCPP_INFO(m_node->get_logger(), "decay_function: %d", m_params.decay_function);
+        RCLCPP_INFO(m_node->get_logger(), "accumulation_mode: %d", m_params.accumulation_mode);
+        RCLCPP_INFO(m_node->get_logger(), "enable_decay: %s", m_params.enable_decay ? "true" : "false");
+        RCLCPP_INFO(m_node->get_logger(), "decay_edge: %s", m_params.decay_edge ? "true" : "false");
+        RCLCPP_INFO(m_node->get_logger(), "-----------------------------");
     }
 
     inline bool Accumulator::readParameters()
@@ -215,6 +261,21 @@ namespace dv_ros2_accumulation
         if (!m_node->get_parameter("decay_function", m_params.decay_function))
         {
             RCLCPP_ERROR(m_node->get_logger(), "Failed to read parameter decay_function");
+            return false;
+        }
+        if (!m_node->get_parameter("accumulation_mode", m_params.accumulation_mode))
+        {
+            RCLCPP_ERROR(m_node->get_logger(), "Failed to read parameter accumulation_mode");
+            return false;
+        }
+        if (!m_node->get_parameter("enable_decay", m_params.enable_decay))
+        {
+            RCLCPP_ERROR(m_node->get_logger(), "Failed to read parameter enable_decay");
+            return false;
+        }
+        if (!m_node->get_parameter("decay_edge", m_params.decay_edge))
+        {
+            RCLCPP_ERROR(m_node->get_logger(), "Failed to read parameter decay_edge");
             return false;
         }
         return true;

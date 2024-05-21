@@ -58,6 +58,12 @@ namespace dv_ros2_accumulation
         int slice_method = static_cast<int>(SliceMethod::TIME);
         /// @brief Decay function to use [NONE, LINEAR, EXPONENTIAL, STEP]
         int decay_function = static_cast<int>(dv::Accumulator::Decay::LINEAR);
+        /// @brief Mode of the accumulation [EDGE, FRAME]
+        std::string accumulation_mode = "FRAME";
+        /// @brief Enable linear decay
+        bool enable_decay = false;
+        /// @brief Slope for linear decay, tau for  exponential decay, time for step decay [0.0, 1.0]
+        double decay_edge = 0.1;
     };
     class Accumulator : public rclcpp::Node
     {
@@ -124,6 +130,8 @@ namespace dv_ros2_accumulation
         boost::lockfree::spsc_queue<dv::EventStore> m_event_queue{100};
 
         std::unique_ptr<dv::Accumulator> m_accumulator = nullptr;
+        std::unique_ptr<dv::PixelAccumulator> m_accumulator_edge = nullptr;
+
 
         std::unique_ptr<dv::EventStreamSlicer> m_slicer = nullptr;
 

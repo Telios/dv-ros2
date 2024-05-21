@@ -22,3 +22,9 @@ dv_ros2_accumulation:
     slice_method: 1
     # Decay function to use [NONE, LINEAR, EXPONENTIAL, STEP] (0,   1, 2, 3)
     decay_function: 1
+    # Mode of the accumulation [EDGE, FRAME]
+    accumulation_mode: "FRAME"
+    # Enable or disable linear decay
+    enable_decay: false
+    # Slope for linear decay, tau for  exponential decay, time for step decay [0.0, 1.0]
+    decay_edge: 0.1
