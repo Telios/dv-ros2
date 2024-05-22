@@ -1,6 +1,6 @@
 # DV ROS2
 
-This package contains ROS2 wrappers for iniVation cameras. The package is based on the [dv-ros](https://gitlab.com/inivation/dv/dv-ros) repository and has been adapted to work with ROS2.
+This package contains ROS2 wrappers for iniVation cameras. The package is based on the [dv-ros](https://gitlab.com/inivation/dv/dv-ros) repository and has been adapted to work with ROS2. The package is still under development and some features are not yet implemented. This project is not affiliated with iniVation AG.
 
 ## Installation
 
@@ -28,3 +28,26 @@ Build the package using the following commands:
 source /opt/ros/humble/setup.bash
 colcon build
 ```
+
+### Run
+
+To test the camera driver, run the following commands:
+
+```
+source install/setup.bash
+ros2 launch dv_ros2_visualization visualization.launch.py
+```
+A GUI should open with the camera feed on the topic `/image`.
+
+### Repository structure
+
+The repository contains multiple projects:
+
+- `dv_ros2_msgs`: Basic msg and srv definitions for the ROS2 interface.
+- `dv_ros2_messaging`: C++ headers required to use dv-processing in ROS2.
+- `dv_ros2_capture`: Camera driver node (supports live camera data streaming and aedat4 file playback)
+- `dv_ros2_accumulation`: Event stream to frame/edge accumulation
+-  (TODO) `dv_ros2_aedat4`: Convert aedat4 files to rosbags 
+-  (TODO) `dv_ros2_runtime_modules`: DV runtime modules for integration with ROS
+- `dv_ros2_visualization`: Simple visualization of events
+-  (TODO) `dv_ros2_tracker`: Lucas-Kanade feature trackers for event and image streams
