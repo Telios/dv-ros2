@@ -20,7 +20,7 @@ dv_ros2_capture:
     # Imu frame
     imu_frame_name: "imu"
     # Enable or disable transformation from imu values to camera
-    transform_imu_to_camera_frame: True
+    transform_imu_to_camera_frame: False
     # Enable or disable unbiased imu values
     unbiased_imu_data: True
     # Enable or disable noise filtering

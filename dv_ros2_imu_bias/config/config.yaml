@@ -1,0 +1,13 @@
+dv_ros2_imu_bias:
+  ros__parameters:
+    # Variance threshold for bias estimation [m/s^2] [0, 2]
+    variance_threshold: 0.1
+
+    # Gravity range for bias estimation [m/s^2] [1, 2]
+    gravity_range: 1.0
+
+    # Duration of the collection phase [s] [1, 10]
+    collection_duration: 1.0
+
+    # Trigger for bias estimation
+    estimate_biases: false
