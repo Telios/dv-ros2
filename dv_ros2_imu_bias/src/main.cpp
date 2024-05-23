@@ -198,9 +198,19 @@ void imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg)
 
 void parameterInitilization()
 {
-    imuBiasNode->declare_parameter("variance_threshold", params.variance_threshold);
-    imuBiasNode->declare_parameter("gravity_range", params.gravity_range);
-    imuBiasNode->declare_parameter("collection_duration", params.collection_duration);
+    rcl_interfaces::msg::ParameterDescriptor descriptor;
+    rcl_interfaces::msg::FloatingPointRange range;
+    range.set__from_value(0.0).set__to_value(2.0).set__step(0.1);
+    descriptor.floating_point_range = {range};
+    imuBiasNode->declare_parameter("variance_threshold", params.variance_threshold, descriptor);
+
+    range.set__from_value(1.0).set__to_value(2.0).set__step(0.1);
+    descriptor.floating_point_range = {range};
+    imuBiasNode->declare_parameter("gravity_range", params.gravity_range, descriptor);
+
+    range.set__from_value(1.0).set__to_value(10.0).set__step(1.0);
+    descriptor.floating_point_range = {range};
+    imuBiasNode->declare_parameter("collection_duration", params.collection_duration, descriptor);
     imuBiasNode->declare_parameter("estimate_biases", params.estimate_biases);
 }
 
@@ -262,7 +272,6 @@ int main(int argc, char **argv)
     imuBiasClient->wait_for_service(std::chrono::seconds(1));
 
     auto imuSubscriber = imuBiasNode->create_subscription<sensor_msgs::msg::Imu>("imu", 10, imuCallback);
-
 
     auto cb_handle = imuBiasNode->add_on_set_parameters_callback(paramsCallback);
     

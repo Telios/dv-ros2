@@ -33,7 +33,6 @@ namespace dv_ros2_accumulation
         NUMBER = 1
     };
 
-
     struct Params
     {
         /// @brief Time in ms to accumulate events over [1,1000]
@@ -89,6 +88,11 @@ namespace dv_ros2_accumulation
         /// @brief Check if the node is running
         /// @return true if the node is running
         bool isRunning() const;
+
+        /// @brief ROS2 parameter callback
+        /// @param parameters vector of parameters
+        /// @return SetParametersResult
+        rcl_interfaces::msg::SetParametersResult paramsCallback(const std::vector<rclcpp::Parameter> &parameters);
     private:
         /// @brief Parameter initialization
         inline void parameterInitilization() const;
@@ -99,6 +103,7 @@ namespace dv_ros2_accumulation
         /// @brief Reads the std library variables and ROS2 parameters
         /// @return true if all parameters are read successfully
         inline bool readParameters();
+
 
         /// @brief Event callback function for populating queue
         /// @param events EventArray message
@@ -130,11 +135,12 @@ namespace dv_ros2_accumulation
         boost::lockfree::spsc_queue<dv::EventStore> m_event_queue{100};
 
         std::unique_ptr<dv::Accumulator> m_accumulator = nullptr;
-        std::unique_ptr<dv::PixelAccumulator> m_accumulator_edge = nullptr;
+        std::unique_ptr<dv::EdgeMapAccumulator> m_accumulator_edge = nullptr;
 
 
         std::unique_ptr<dv::EventStreamSlicer> m_slicer = nullptr;
 
+        std::optional<int> m_job_id;
 
     };
 }  // namespace dv_ros2_accumulation

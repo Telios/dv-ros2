@@ -6,6 +6,8 @@ int main(int argc, char **argv)
     std::string t_node_name{"dv_ros2_accumulation"};
 
     std::shared_ptr<dv_ros2_accumulation::Accumulator> accumulator = std::make_shared<dv_ros2_accumulation::Accumulator>(t_node_name);
+
+    auto handle = accumulator->add_on_set_parameters_callback(std::bind(&dv_ros2_accumulation::Accumulator::paramsCallback, accumulator, std::placeholders::_1));
     
     accumulator->start();
 
