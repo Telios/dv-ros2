@@ -94,6 +94,10 @@ namespace dv_ros2_capture
         /// @return true if the threads are running, false otherwise.
         bool isRunning() const;
 
+        /// @brief Callback when parameters get changed.
+        /// @param parameters Parameters
+        /// @return SetParametersResult result of the callback
+        rcl_interfaces::msg::SetParametersResult paramsCallback(const std::vector<rclcpp::Parameter> &parameters);
     private:
         rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr m_frame_publisher;
         rclcpp::Publisher<sensor_msgs::msg::CameraInfo>::SharedPtr m_camera_info_publisher;
@@ -146,6 +150,9 @@ namespace dv_ros2_capture
         /// @brief Reads the std library variables and ROS2 parameters
         /// @return true if all parameters are read successfully
         inline bool readParameters();
+
+        /// @brief Update camera configuration
+        inline void updateConfiguration();
 
         /// @brief Populate the info message
         void populateInfoMsg(const dv::camera::CameraGeometry &cameraGeometry);

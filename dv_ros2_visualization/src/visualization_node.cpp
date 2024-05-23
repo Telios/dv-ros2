@@ -22,7 +22,6 @@ int main(int argc, char **argv)
                 if (visualizer == nullptr)
                 {
                     visualizer = std::make_unique<dv::visualization::EventVisualizer>(cv::Size(events->width, events->height));
-
                 }
 
                 try
@@ -36,7 +35,7 @@ int main(int argc, char **argv)
             }); 
     auto framePublisher = vis_node->create_publisher<sensor_msgs::msg::Image>("image", 10);
 
-    slicer.doEveryTimeInterval(std::chrono::milliseconds(10), [&visualizer, &framePublisher](const dv::EventStore &events)
+    slicer.doEveryTimeInterval(std::chrono::milliseconds(5), [&visualizer, &framePublisher](const dv::EventStore &events)
     {
         if (visualizer != nullptr)
         {

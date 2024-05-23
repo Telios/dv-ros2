@@ -162,16 +162,11 @@ namespace dv_ros2_capture
             }
         }
 
-        auto &camera_ptr = m_reader.getCameraCapturePtr();
+        auto& camera_ptr = m_reader.getCameraCapturePtr();
         if (camera_ptr != nullptr) {
             if (camera_ptr->isFrameStreamAvailable()) 
             {
                 // DAVIS camera
-                // TODO: dynamic reconfigure
-                camera_ptr->setDVSGlobalHold(m_params.globalHold);
-                camera_ptr->setDVSBiasSensitivity(static_cast<dv::io::CameraCapture::BiasSensitivity>(m_params.biasSensitivity));
-                updateNoiseFilter(m_params.noiseFiltering, static_cast<int64_t>(m_params.noiseBATime));
-
                 if (camera_ptr->isTriggerStreamAvailable()) {
                     // External trigger detection support for DAVIS346 - MODIFY HERE FOR DIFFERENT DETECTION SETTINGS!
                     camera_ptr->deviceConfigSet(DAVIS_CONFIG_EXTINPUT, DAVIS_CONFIG_EXTINPUT_DETECT_RISING_EDGES, true);
@@ -182,12 +177,6 @@ namespace dv_ros2_capture
             }
             else {
                 // DVXplorer type camera
-                
-                // TODO: dynamic reconfigure
-                camera_ptr->setDVSGlobalHold(m_params.globalHold);
-                camera_ptr->setDVSBiasSensitivity(static_cast<dv::io::CameraCapture::BiasSensitivity>(m_params.biasSensitivity));
-                updateNoiseFilter(m_params.noiseFiltering, static_cast<int64_t>(m_params.noiseBATime));
-
                 if (camera_ptr->isTriggerStreamAvailable()) {
                     // External trigger detection support for DVXplorer - MODIFY HERE FOR DIFFERENT DETECTION SETTINGS!
                     camera_ptr->deviceConfigSet(DVX_EXTINPUT, DVX_EXTINPUT_DETECT_RISING_EDGES, true);
@@ -196,12 +185,7 @@ namespace dv_ros2_capture
                     camera_ptr->deviceConfigSet(DVX_EXTINPUT, DVX_EXTINPUT_RUN_DETECTOR, m_params.triggers);
                 }
             }
-
-            // Support variable data interval sizes.
-            camera_ptr->deviceConfigSet(CAER_HOST_CONFIG_PACKETS, CAER_HOST_CONFIG_PACKETS_MAX_CONTAINER_INTERVAL, m_params.timeIncrement);
-        }
-        else {
-            // TODO: dynamic reconfigure
+            updateConfiguration();
         }
 
         RCLCPP_INFO(m_node->get_logger(), "Successfully launched.");
@@ -251,7 +235,12 @@ namespace dv_ros2_capture
 
     inline void Capture::parameterInitilization() const
     {
-        m_node->declare_parameter("time_increment", m_params.timeIncrement);
+        rcl_interfaces::msg::ParameterDescriptor descriptor;
+        rcl_interfaces::msg::IntegerRange int_range;
+
+        int_range.set__from_value(1).set__to_value(1000000).set__step(1);
+        descriptor.integer_range = {int_range};
+        m_node->declare_parameter("time_increment", m_params.timeIncrement, descriptor);
         m_node->declare_parameter("frames", m_params.frames);
         m_node->declare_parameter("events", m_params.events);
         m_node->declare_parameter("imu", m_params.imu);
@@ -264,11 +253,15 @@ namespace dv_ros2_capture
         m_node->declare_parameter("transform_imu_to_camera_frame", m_params.transformImuToCameraFrame);
         m_node->declare_parameter("unbiased_imu_data", m_params.unbiasedImuData);
         m_node->declare_parameter("noise_filtering", m_params.noiseFiltering);
-        m_node->declare_parameter("noise_ba_time", m_params.noiseBATime);
+        int_range.set__from_value(1).set__to_value(1000000).set__step(1);
+        descriptor.integer_range = {int_range};
+        m_node->declare_parameter("noise_ba_time", m_params.noiseBATime, descriptor);
         m_node->declare_parameter("sync_device_list", m_params.syncDeviceList);
         m_node->declare_parameter("wait_for_sync", m_params.waitForSync);
         m_node->declare_parameter("global_hold", m_params.globalHold);
-        m_node->declare_parameter("bias_sensitivity", m_params.biasSensitivity);
+        int_range.set__from_value(0).set__to_value(5).set__step(1);
+        descriptor.integer_range = {int_range};
+        m_node->declare_parameter("bias_sensitivity", m_params.biasSensitivity, descriptor);
     }
 
     inline void Capture::parameterPrinter() const
@@ -391,6 +384,265 @@ namespace dv_ros2_capture
             return false;
         }
         return true;
+    }
+
+    void Capture::updateConfiguration()
+    {
+        RCLCPP_INFO(m_node->get_logger(), "Updating configuration...");
+        auto& camera_ptr = m_reader.getCameraCapturePtr();
+        if (camera_ptr != nullptr)
+        {
+            if (camera_ptr->isFrameStreamAvailable()) 
+            {
+                // DAVIS camera
+                camera_ptr->setDVSGlobalHold(m_params.globalHold);
+                camera_ptr->setDVSBiasSensitivity(static_cast<dv::io::CameraCapture::BiasSensitivity>(m_params.biasSensitivity));
+                updateNoiseFilter(m_params.noiseFiltering, static_cast<int64_t>(m_params.noiseBATime));
+            }
+            else {
+                // DVXplorer type camera
+                camera_ptr->setDVSGlobalHold(m_params.globalHold);
+                camera_ptr->setDVSBiasSensitivity(static_cast<dv::io::CameraCapture::BiasSensitivity>(m_params.biasSensitivity));
+                updateNoiseFilter(m_params.noiseFiltering, static_cast<int64_t>(m_params.noiseBATime));
+            }
+
+            // Support variable data interval sizes.
+            camera_ptr->deviceConfigSet(CAER_HOST_CONFIG_PACKETS, CAER_HOST_CONFIG_PACKETS_MAX_CONTAINER_INTERVAL, m_params.timeIncrement);
+        }
+    }
+
+    rcl_interfaces::msg::SetParametersResult Capture::paramsCallback(const std::vector<rclcpp::Parameter> &parameters)
+    {
+        rcl_interfaces::msg::SetParametersResult result;
+        result.successful = true;
+        result.reason = "success";
+
+        for (const auto &param : parameters)
+        {
+            if (param.get_name() == "time_increment")
+            {
+                if (param.get_type() == rclcpp::ParameterType::PARAMETER_INTEGER)
+                {
+                    m_params.timeIncrement = param.as_int();
+                }
+                else
+                {
+                    result.successful = false;
+                    result.reason = "time_increment must be an integer";
+                }
+            }
+            else if (param.get_name() == "frames")
+            {
+                if (param.get_type() == rclcpp::ParameterType::PARAMETER_BOOL)
+                {
+                    m_params.frames = param.as_bool();
+                }
+                else
+                {
+                    result.successful = false;
+                    result.reason = "frames must be a boolean";
+                }
+            }
+            else if (param.get_name() == "events")
+            {
+                if (param.get_type() == rclcpp::ParameterType::PARAMETER_BOOL)
+                {
+                    m_params.events = param.as_bool();
+                }
+                else
+                {
+                    result.successful = false;
+                    result.reason = "events must be a boolean";
+                }
+            }
+            else if (param.get_name() == "imu")
+            {
+                if (param.get_type() == rclcpp::ParameterType::PARAMETER_BOOL)
+                {
+                    m_params.imu = param.as_bool();
+                }
+                else
+                {
+                    result.successful = false;
+                    result.reason = "imu must be a boolean";
+                }
+            }
+            else if (param.get_name() == "triggers")
+            {
+                if (param.get_type() == rclcpp::ParameterType::PARAMETER_BOOL)
+                {
+                    m_params.triggers = param.as_bool();
+                }
+                else
+                {
+                    result.successful = false;
+                    result.reason = "triggers must be a boolean";
+                }
+            }
+            else if (param.get_name() == "camera_name")
+            {
+                if (param.get_type() == rclcpp::ParameterType::PARAMETER_STRING)
+                {
+                    m_params.cameraName = param.as_string();
+                }
+                else
+                {
+                    result.successful = false;
+                    result.reason = "camera_name must be a string";
+                }
+            }
+            else if (param.get_name() == "aedat4_file_path")
+            {
+                if (param.get_type() == rclcpp::ParameterType::PARAMETER_STRING)
+                {
+                    m_params.aedat4FilePath = param.as_string();
+                }
+                else
+                {
+                    result.successful = false;
+                    result.reason = "aedat4_file_path must be a string";
+                }
+            }
+            else if (param.get_name() == "camera_calibration_file_path")
+            {
+                if (param.get_type() == rclcpp::ParameterType::PARAMETER_STRING)
+                {
+                    m_params.cameraCalibrationFilePath = param.as_string();
+                }
+                else
+                {
+                    result.successful = false;
+                    result.reason = "camera_calibration_file_path must be a string";
+                }
+            }
+            else if (param.get_name() == "camera_frame_name")
+            {
+                if (param.get_type() == rclcpp::ParameterType::PARAMETER_STRING)
+                {
+                    m_params.cameraFrameName = param.as_string();
+                }
+                else
+                {
+                    result.successful = false;
+                    result.reason = "camera_frame_name must be a string";
+                }
+            }
+            else if (param.get_name() == "imu_frame_name")
+            {
+                if (param.get_type() == rclcpp::ParameterType::PARAMETER_STRING)
+                {
+                    m_params.imuFrameName = param.as_string();
+                }
+                else
+                {
+                    result.successful = false;
+                    result.reason = "imu_frame_name must be a string";
+                }
+            }
+            else if (param.get_name() == "transform_imu_to_camera_frame")
+            {
+                if (param.get_type() == rclcpp::ParameterType::PARAMETER_BOOL)
+                {
+                    m_params.transformImuToCameraFrame = param.as_bool();
+                }
+                else
+                {
+                    result.successful = false;
+                    result.reason = "transform_imu_to_camera_frame must be a boolean";
+                }
+            }
+            else if (param.get_name() == "unbiased_imu_data")
+            {
+                if (param.get_type() == rclcpp::ParameterType::PARAMETER_BOOL)
+                {
+                    m_params.unbiasedImuData = param.as_bool();
+                }
+                else
+                {
+                    result.successful = false;
+                    result.reason = "unbiased_imu_data must be a boolean";
+                }
+            }
+            else if (param.get_name() == "noise_filtering")
+            {
+                if (param.get_type() == rclcpp::ParameterType::PARAMETER_BOOL)
+                {
+                    m_params.noiseFiltering = param.as_bool();
+                }
+                else
+                {
+                    result.successful = false;
+                    result.reason = "noise_filtering must be a boolean";
+                }
+            }
+            else if (param.get_name() == "noise_ba_time")
+            {
+                if (param.get_type() == rclcpp::ParameterType::PARAMETER_INTEGER)
+                {
+                    m_params.noiseBATime = param.as_int();
+                }
+                else
+                {
+                    result.successful = false;
+                    result.reason = "noise_ba_time must be an integer";
+                }
+            }
+            else if (param.get_name() == "sync_device_list")
+            {
+                if (param.get_type() == rclcpp::ParameterType::PARAMETER_STRING_ARRAY)
+                {
+                    m_params.syncDeviceList = param.as_string_array();
+                }
+                else
+                {
+                    result.successful = false;
+                    result.reason = "sync_device_list must be a string array";
+                }
+            }
+            else if (param.get_name() == "wait_for_sync")
+            {
+                if (param.get_type() == rclcpp::ParameterType::PARAMETER_BOOL)
+                {
+                    m_params.waitForSync = param.as_bool();
+                }
+                else
+                {
+                    result.successful = false;
+                    result.reason = "wait_for_sync must be a boolean";
+                }
+            }
+            else if (param.get_name() == "global_hold")
+            {
+                if (param.get_type() == rclcpp::ParameterType::PARAMETER_BOOL)
+                {
+                    m_params.globalHold = param.as_bool();
+                }
+                else
+                {
+                    result.successful = false;
+                    result.reason = "global_hold must be a boolean";
+                }
+            }
+            else if (param.get_name() == "bias_sensitivity")
+            {
+                if (param.get_type() == rclcpp::ParameterType::PARAMETER_INTEGER)
+                {
+                    m_params.biasSensitivity = param.as_int();
+                }
+                else
+                {
+                    result.successful = false;
+                    result.reason = "bias_sensitivity must be an integer";
+                }
+            }
+            else
+            {
+                result.successful = false;
+                result.reason = "unknown parameter";
+            }
+        }
+        updateConfiguration();
+        return result;
     }
 
     void Capture::populateInfoMsg(const dv::camera::CameraGeometry &cameraGeometry)
@@ -1205,10 +1457,4 @@ namespace dv_ros2_capture
             std::this_thread::sleep_for(std::chrono::microseconds(100));
         }
     }
-
-
-
-
-
-
 }
