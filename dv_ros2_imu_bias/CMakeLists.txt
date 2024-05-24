@@ -13,12 +13,11 @@ find_package(dv_ros2_messaging REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(dv-processing REQUIRED)
 
 set(dependencies "rclcpp" "dv_ros2_msgs" "dv_ros2_messaging" "std_msgs" "sensor_msgs" "geometry_msgs")
 
 add_executable(${PROJECT_NAME}_node src/main.cpp)
-
-ADD_SUBDIRECTORY(../dv-processing ../dv-processing EXCLUDE_FROM_ALL)
 
 ament_target_dependencies(${PROJECT_NAME}_node ${dependencies})
 

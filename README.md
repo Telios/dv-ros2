@@ -8,7 +8,7 @@ Tested on Ubuntu 22.04 with ROS2 Humble.
 First, clone the repository.
     
 ```
-git clone --recurse-submodules https://github.com/Telios/dv-ros2.git
+git clone https://github.com/Telios/dv-ros2.git
 ```
 
 ### Dependencies

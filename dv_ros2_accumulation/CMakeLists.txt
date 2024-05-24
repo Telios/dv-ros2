@@ -13,6 +13,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(dv_ros2_msgs REQUIRED)
 find_package(dv_ros2_messaging REQUIRED)
+find_package(dv-processing REQUIRED)
 
 set(dependencies "sensor_msgs" "rclcpp" "geometry_msgs" "std_msgs" "dv_ros2_msgs" "dv_ros2_messaging")
 
@@ -26,8 +27,6 @@ add_executable(${PROJECT_NAME}_node
   src/accumulator_node.cpp
   src/Accumulator.cpp
   )
-
-ADD_SUBDIRECTORY(../dv-processing ../dv-processing EXCLUDE_FROM_ALL)
 
 ament_target_dependencies(${PROJECT_NAME}_core ${dependencies})
 ament_target_dependencies(${PROJECT_NAME}_node ${dependencies})

@@ -12,6 +12,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(dv_ros2_messaging REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(rclcpp REQUIRED)
+find_package(dv-processing REQUIRED)
 
 set(dependencies "std_msgs" "sensor_msgs" "dv_ros2_msgs" "dv_ros2_messaging" "rclcpp")
 
@@ -26,8 +27,6 @@ add_library(${PROJECT_NAME}_core
 add_executable(${PROJECT_NAME}_node
   src/visualization_node.cpp
 )
-
-ADD_SUBDIRECTORY(../dv-processing ../dv-processing EXCLUDE_FROM_ALL)
 
 ament_target_dependencies(${PROJECT_NAME}_core ${dependencies})
 ament_target_dependencies(${PROJECT_NAME}_node ${dependencies})
