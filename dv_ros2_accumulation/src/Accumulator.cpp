@@ -80,7 +80,7 @@ namespace dv_ros2_accumulation
             m_slicer->removeJob(m_job_id.value());
         }
 
-        if (m_params.accumulation_mode == "FRAME")
+        if (m_params.accumulation_mode == "FRAME" && m_accumulator != nullptr)
         {
             m_accumulator->setEventContribution(m_params.event_contribution);
             m_accumulator->setDecayParam(m_params.decay_param);
@@ -91,7 +91,7 @@ namespace dv_ros2_accumulation
             m_accumulator->setSynchronousDecay(m_params.synchronous_decay);
             m_accumulator->setDecayFunction(static_cast<dv::Accumulator::Decay>(m_params.decay_function));
         }
-        else if (m_params.accumulation_mode == "EDGE")
+        else if (m_params.accumulation_mode == "EDGE" && m_accumulator_edge != nullptr)
         {
             if (m_params.enable_decay)
             {
@@ -105,7 +105,7 @@ namespace dv_ros2_accumulation
             m_accumulator_edge->setEventContribution(static_cast<float>(m_params.event_contribution));
             m_accumulator_edge->setNeutralPotential(static_cast<float>(m_params.neutral_potential));
         }
-        else
+        if (m_params.accumulation_mode != "FRAME" && m_params.accumulation_mode != "EDGE")
         {
             throw dv::exceptions::InvalidArgument<std::string>("Unknown accumulation mode", m_params.accumulation_mode);
         }
@@ -205,7 +205,7 @@ namespace dv_ros2_accumulation
         RCLCPP_INFO(m_node->get_logger(), "decay_param: %f", m_params.decay_param);
         RCLCPP_INFO(m_node->get_logger(), "slice_method: %d", m_params.slice_method);
         RCLCPP_INFO(m_node->get_logger(), "decay_function: %d", m_params.decay_function);
-        RCLCPP_INFO(m_node->get_logger(), "accumulation_mode: &", m_params.accumulation_mode);
+        RCLCPP_INFO(m_node->get_logger(), "accumulation_mode: %s", m_params.accumulation_mode.c_str());
         RCLCPP_INFO(m_node->get_logger(), "enable_decay: %s", m_params.enable_decay ? "true" : "false");
         RCLCPP_INFO(m_node->get_logger(), "decay_edge: %s", m_params.decay_edge ? "true" : "false");
         RCLCPP_INFO(m_node->get_logger(), "-----------------------------");

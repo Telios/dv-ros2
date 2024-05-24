@@ -1,7 +1,7 @@
 dv_ros2_accumulation:
   ros__parameters:
     # Time in ms to accumulate events over [1,1000]
-    accumulation_time: 33
+    accumulation_time: 10
     # Number of events to accumulate for a frame [1000,10000000]
     accumulation_number: 100000
     # Decay at frame generation time 

@@ -4,6 +4,13 @@ from ament_index_python.packages import get_package_share_directory
 import os, yaml
 
 def generate_launch_description():
+    acc_package_name = 'dv_ros2_accumulation'
+    acc_config_path = os.path.join(get_package_share_directory(acc_package_name), 'config', 'config.yaml')
+
+    acc_node_name = f'{acc_package_name}_node'
+    with open(acc_config_path, 'r') as file:
+        acc_config = yaml.safe_load(file)[acc_package_name]['ros__parameters']
+    
     cap_package_name = 'dv_ros2_capture'
     cap_config_path = os.path.join(get_package_share_directory(cap_package_name), 'config', 'config.yaml')
 
@@ -28,6 +35,30 @@ def generate_launch_description():
             emulate_tty=True,
         ),
         Node(
+            package=acc_package_name,
+            executable=acc_node_name,
+            name=f'{acc_node_name}_frame',
+            namespace=f'{acc_node_name}_frame',
+            parameters=[acc_config],
+            output='screen',
+            emulate_tty=True,
+            remappings=[
+                (f'/{acc_node_name}_frame/events', '/events'),            
+            ]
+        ),  
+        Node(
+            package=acc_package_name,
+            executable=acc_node_name,
+            name=f'{acc_node_name}_edge',
+            namespace=f'{acc_node_name}_edge',
+            parameters=[acc_config | {'accumulation_mode': "EDGE"}],
+            output='screen',
+            emulate_tty=True,
+            remappings=[
+                (f'/{acc_node_name}_edge/events', '/events'),            
+            ]
+        ),
+        Node(
             package=vis_package_name,
             executable=vis_node_name,
             name=vis_node_name,
@@ -40,9 +71,9 @@ def generate_launch_description():
             ]
         ),
         Node(
-            package='rqt_image_view',
-            executable='rqt_image_view',
-            name='rqt_image_view',
+            package='rqt_gui',
+            executable='rqt_gui',
+            name='rqt_gui',
             output='screen',
             emulate_tty=True,
         )

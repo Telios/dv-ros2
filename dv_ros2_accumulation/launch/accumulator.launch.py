@@ -24,9 +24,13 @@ def generate_launch_description():
             package=acc_package_name,
             executable=acc_node_name,
             name=acc_node_name,
+            namespace=acc_node_name,
             parameters=[acc_config],
             output='screen',
             emulate_tty=True,
+            remappings=[
+                (f'/{acc_node_name}/events', '/events'),            
+            ]
         ),
         Node(
             package=cap_package_name,
