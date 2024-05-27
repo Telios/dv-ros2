@@ -16,7 +16,7 @@ int main(int argc, char **argv)
 
     auto eventSubscriber 
         = vis_node->create_subscription<dv_ros2_msgs::msg::EventArray>(
-            "events", 200, 
+            "events", 10, 
             [&slicer, &visualizer, &vis_node](const dv_ros2_msgs::msg::EventArray::SharedPtr events)
             {
                 if (visualizer == nullptr)
@@ -35,7 +35,7 @@ int main(int argc, char **argv)
             }); 
     auto framePublisher = vis_node->create_publisher<sensor_msgs::msg::Image>("image", 10);
 
-    slicer.doEveryTimeInterval(std::chrono::milliseconds(15), [&visualizer, &framePublisher](const dv::EventStore &events)
+    slicer.doEveryTimeInterval(std::chrono::milliseconds(3), [&visualizer, &framePublisher](const dv::EventStore &events)
     {
         if (visualizer != nullptr)
         {

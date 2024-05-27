@@ -826,6 +826,7 @@ namespace dv_ros2_capture
         if (live_capture)
         {
             m_synchronized = false;
+            live_capture->setDVXplorerEFPS(dv::io::CameraCapture::DVXeFPS::EFPS_CONSTANT_500);
             m_sync_thread = std::thread(&Capture::synchronizationThread, this);
         }
         else 
@@ -1229,7 +1230,7 @@ namespace dv_ros2_capture
             RCLCPP_WARN(m_node->get_logger(), "Received synchronization request on a non-live camera!");
             //return true;
         }
-        if (liveCapture->isConnected() && liveCapture->isMasterCamera()) 
+        if (liveCapture->isRunning() && liveCapture->isMasterCamera()) 
         {
             // Update the timestamp offset
             liveCapture->setTimestampOffset(req->timestamp_offset);

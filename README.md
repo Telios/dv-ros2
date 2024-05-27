@@ -2,6 +2,10 @@
 
 This package contains ROS2 wrappers for iniVation cameras. The package is based on the [dv-ros](https://gitlab.com/inivation/dv/dv-ros) repository and has been adapted to work with ROS2. The package is still under development and some features are not yet implemented. This project is not affiliated with iniVation AG.
 
+<p align="center">
+    <img src="images/event_camera_images.gif" width=1000>
+</p>
+
 ## Installation
 
 Tested on Ubuntu 22.04 with ROS2 Humble.
