@@ -21,7 +21,7 @@ Install dependencies using the following commands:
 ```
 sudo add-apt-repository ppa:inivation-ppa/inivation
 sudo apt-get update
-sudo apt-get install cmake boost-inivation libopencv-dev libeigen3-dev libcaer-dev libfmt-dev liblz4-dev libzstd-dev libssl-dev
+sudo apt-get install dv-processing cmake boost-inivation libopencv-dev libeigen3-dev libcaer-dev libfmt-dev liblz4-dev libzstd-dev libssl-dev
 ```
 
 ### Build
