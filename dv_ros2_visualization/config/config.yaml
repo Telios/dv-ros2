@@ -1,3 +1,18 @@
 dv_ros2_visualization:
   ros__parameters:
-    topic_name: "visualization_marker"
+    # The topic name to publish the image under
+    image_topic: "image"
+    # The frame rate to publish the image at
+    frame_rate: 60.0
+    # RGB values of the background
+    background_color_r: 255
+    background_color_g: 255
+    background_color_b: 255
+    # RGB values of the positive veents
+    positive_event_color_r: 0
+    positive_event_color_g: 0
+    positive_event_color_b: 255
+    # RGB values of the negative events
+    negative_event_color_r: 255
+    negative_event_color_g: 0
+    negative_event_color_b: 0

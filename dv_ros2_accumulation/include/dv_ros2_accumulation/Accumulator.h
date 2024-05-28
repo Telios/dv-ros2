@@ -104,19 +104,20 @@ namespace dv_ros2_accumulation
         /// @return true if all parameters are read successfully
         inline bool readParameters();
 
-
         /// @brief Event callback function for populating queue
         /// @param events EventArray message
         void eventCallback(dv_ros2_msgs::msg::EventArray::SharedPtr events);
 
         /// @brief Accumulation thread
         void accumulate();
-
+        
+        /// @brief Slicer callback function
         void slicerCallback(const dv::EventStore &events);
 
+        /// @brief Update configuration for reconfiguration while running
         void updateConfiguration();
 
-        /// @brief eclcpp node variable
+        /// @brief rclcpp node pointer
         rclcpp::Node::SharedPtr m_node;
 
         /// @brief Params struct
@@ -129,17 +130,18 @@ namespace dv_ros2_accumulation
         // EventArray subscriber
         rclcpp::Subscription<dv_ros2_msgs::msg::EventArray>::SharedPtr m_events_subscriber;
 
-        // Frame publisher
+        /// @brief Frame publisher
         rclcpp::Publisher<sensor_msgs::msg::Image>::SharedPtr m_frame_publisher;
 
         boost::lockfree::spsc_queue<dv::EventStore> m_event_queue{100};
-
+        
         std::unique_ptr<dv::Accumulator> m_accumulator = nullptr;
         std::unique_ptr<dv::EdgeMapAccumulator> m_accumulator_edge = nullptr;
 
-
+        /// @brief Slicer object
         std::unique_ptr<dv::EventStreamSlicer> m_slicer = nullptr;
-
+        
+        /// @brief Job ID of the slicer, used to stop jobs running in the slicer
         std::optional<int> m_job_id;
 
     };

@@ -26,6 +26,7 @@ add_library(${PROJECT_NAME}_core
 
 add_executable(${PROJECT_NAME}_node
   src/visualization_node.cpp
+  src/Visualizer.cpp
 )
 
 ament_target_dependencies(${PROJECT_NAME}_core ${dependencies})
