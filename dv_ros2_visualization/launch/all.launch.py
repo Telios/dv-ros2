@@ -24,6 +24,13 @@ def generate_launch_description():
     vis_node_name = f'{vis_package_name}_node'
     with open(vis_config_path, 'r') as file:
         vis_config = yaml.safe_load(file)[vis_package_name]['ros__parameters']
+
+    track_package_name = 'dv_ros2_tracker'
+    track_config_path = os.path.join(get_package_share_directory(track_package_name), 'config', 'config.yaml')
+
+    track_node_name = f'{track_package_name}_node'
+    with open(track_config_path, 'r') as file:
+        track_config = yaml.safe_load(file)[track_package_name]['ros__parameters']
     
     return LaunchDescription([
         Node(
@@ -51,7 +58,7 @@ def generate_launch_description():
             executable=acc_node_name,
             name=f'{acc_node_name}_edge',
             namespace=f'{acc_node_name}_edge',
-            parameters=[acc_config | {'accumulation_mode': "EDGE"}],
+            parameters=[acc_config | {'accumulation_mode': "EDGE", 'event_contribution': 0.3}],
             output='screen',
             emulate_tty=True,
             remappings=[
@@ -69,6 +76,19 @@ def generate_launch_description():
             remappings=[
                 (f'/{vis_node_name}/events', '/events'),            
             ]
+        ),
+        Node(
+            package=track_package_name,
+            executable=track_node_name,
+            name=track_node_name,
+            namespace=track_node_name,
+            parameters=[track_config],
+            output='screen',
+            remappings=[
+                (f'/{track_node_name}/events', '/events'),
+                (f'/{track_node_name}/camera_info', '/camera_info'),            
+            ],
+            emulate_tty=True,
         ),
         Node(
             package='rqt_gui',

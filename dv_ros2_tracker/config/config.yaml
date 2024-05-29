@@ -23,7 +23,7 @@ dv_ros2_tracker:
     # Number of events accumulated in a single frame
     num_events: 30000
     # Frame accumulation framerate
-    accumulation_framerate: 50
+    accumulation_framerate: 100
     # Combined mode uses accumulated frame to perform intermediate tracking between image frames, this value controls how many frames are accumulated between two image frames
     num_intermediate_frames: 5
     # MotionAware Tracker

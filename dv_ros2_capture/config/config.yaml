@@ -34,7 +34,7 @@ dv_ros2_capture:
     # Enable or disable global hold
     global_hold: False
     # Bias sensitivity from [0-5] 2 is the default value 0 is low and 5 is high
-    bias_sensitivity: 1
+    bias_sensitivity: 3
 
     
 
