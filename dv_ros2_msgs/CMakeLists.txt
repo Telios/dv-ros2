@@ -20,6 +20,9 @@ set(msg_files
   "msg/Event.msg"
   "msg/EventArray.msg"
   "msg/Trigger.msg"
+  "msg/Depth.msg"
+  "msg/TimedKeypoint.msg"
+  "msg/TimedKeypointArray.msg"
   )
 
 set(srv_files
