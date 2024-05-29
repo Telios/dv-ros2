@@ -95,6 +95,7 @@ def generate_launch_description():
             executable='rqt_gui',
             name='rqt_gui',
             output='screen',
+            parameters=[{'perspective_file': os.path.join(get_package_share_directory('dv_ros2_visualization'), 'config', 'all.perspective')}],
             emulate_tty=True,
         )
     ])

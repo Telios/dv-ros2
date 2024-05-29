@@ -39,9 +39,9 @@ To test the camera driver, run the following commands:
 
 ```
 source install/setup.bash
-ros2 launch dv_ros2_visualization visualization.launch.py
+ros2 launch dv_ros2_visualization all.launch.py
 ```
-A GUI should open with the camera feed on the topic `/image`.
+A GUI should open with the 4 different camera streams.
 
 ### Repository structure
 
@@ -54,4 +54,4 @@ The repository contains multiple projects:
 -  (TODO) `dv_ros2_aedat4`: Convert aedat4 files to rosbags 
 -  (TODO) `dv_ros2_runtime_modules`: DV runtime modules for integration with ROS
 - `dv_ros2_visualization`: Simple visualization of events
--  (TODO) `dv_ros2_tracker`: Lucas-Kanade feature trackers for event and image streams
+- `dv_ros2_tracker`: Lucas-Kanade feature trackers for event and image streams
