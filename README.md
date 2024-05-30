@@ -51,7 +51,7 @@ The repository contains multiple projects:
 - `dv_ros2_messaging`: C++ headers required to use dv-processing in ROS2.
 - `dv_ros2_capture`: Camera driver node (supports live camera data streaming and aedat4 file playback)
 - `dv_ros2_accumulation`: Event stream to frame/edge accumulation
--  (TODO) `dv_ros2_aedat4`: Convert aedat4 files to rosbags 
--  (TODO) `dv_ros2_runtime_modules`: DV runtime modules for integration with ROS
+- `dv_ros2_aedat4`: Convert aedat4 files to rosbags 
+- `dv_ros2_runtime_modules`: DV runtime modules for integration with ROS
 - `dv_ros2_visualization`: Simple visualization of events
 - `dv_ros2_tracker`: Lucas-Kanade feature trackers for event and image streams
