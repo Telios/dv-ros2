@@ -15,6 +15,14 @@ First, clone the repository.
 git clone https://github.com/Telios/dv-ros2.git
 ```
 
+For ease of use, build the packages with docker:
+```
+cd docker && docker compose up
+xhost +local:docker
+docker compose up
+```
+Otherwise, follow the instructions below.
+
 ### Dependencies
 Install dependencies using the following commands:
 
