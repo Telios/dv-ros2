@@ -8,7 +8,7 @@ This package contains ROS2 wrappers for iniVation cameras. The package is based 
 
 ## Installation
 
-Tested on Ubuntu 22.04 with ROS2 Humble.
+Tested on Ubuntu 22.04 with ROS2 Humble. Only confirmed to work before dv-processing Version 2.0.0.
 First, clone the repository.
     
 ```
