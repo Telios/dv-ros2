@@ -8,7 +8,7 @@ namespace dv_ros2_capture
     }
 
     Reader::Reader(const std::string &cameraName) {
-        cameraCapturePtr = std::make_unique<dv::io::CameraCapture>(cameraName);
+        cameraCapturePtr = dv::io::camera::open(cameraName);
         mCameraCapture   = true;
     }
 
@@ -39,7 +39,7 @@ namespace dv_ros2_capture
         }
     }
 
-    std::optional<dv::cvector<dv::IMU>> Reader::getNextImuBatch() {
+    std::optional<std::vector<dv::IMU>> Reader::getNextImuBatch() {
         if (mCameraCapture) {
             return cameraCapturePtr->getNextImuBatch();
         }
@@ -57,7 +57,7 @@ namespace dv_ros2_capture
         }
     }
 
-    std::optional<dv::cvector<dv::Trigger>> Reader::getNextTriggerBatch() {
+    std::optional<std::vector<dv::Trigger>> Reader::getNextTriggerBatch() {
         if (mCameraCapture) {
             return cameraCapturePtr->getNextTriggerBatch();
         }
@@ -119,7 +119,7 @@ namespace dv_ros2_capture
             return true;
         }
     }
-    const std::unique_ptr<dv::io::CameraCapture> &Reader::getCameraCapturePtr() const {
+    const dv::io::camera::CameraPtr &Reader::getCameraCapturePtr() const {
         return cameraCapturePtr;
     }
 

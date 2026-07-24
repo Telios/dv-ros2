@@ -1,14 +1,15 @@
 #pragma once
 
 #include <dv-processing/core/core.hpp>
-#include <dv-processing/io/camera_capture.hpp>
+#include <dv-processing/io/camera/camera_input_base.hpp>
+#include <dv-processing/io/camera/discovery.hpp>
 #include <dv-processing/io/mono_camera_recording.hpp>
 
 #include <opencv2/core/types.hpp>
 
 namespace dv_ros2_capture {
 /**
- * Wrap the dv::io::CameraCapture and the dv::io::MonoCameraRecording in a single interface.
+ * Wrap live camera input and dv::io::MonoCameraRecording in a single interface.
  */
 class Reader {
 public:
@@ -22,7 +23,7 @@ public:
 	explicit Reader(const std::filesystem::path &aedat4FilePath, const std::string &cameraName);
 
 	/**
-	 * Construct a dv::io::CameraCapture equivalent.
+	 * Construct a live camera input equivalent.
 	 * @param cameraName name of the camera to stram. Can be an empty string.
 	 */
 	explicit Reader(const std::string &cameraName);
@@ -49,7 +50,7 @@ public:
 	 * Parse and retrieve next IMU data batch.
 	 * @return 		IMU data batch or `std::nullopt` if no IMU data was received since last read.
 	 */
-	[[nodiscard]] std::optional<dv::cvector<dv::IMU>> getNextImuBatch();
+	[[nodiscard]] std::optional<std::vector<dv::IMU>> getNextImuBatch();
 
 	/**
 	 * Parse and retrieve next frame.
@@ -61,7 +62,7 @@ public:
 	 * Parse and retrieve next trigger data batch.
 	 * @return 		Trigger data batch or `std::nullopt` if no triggers were received since last read.
 	 */
-	[[nodiscard]] std::optional<dv::cvector<dv::Trigger>> getNextTriggerBatch();
+	[[nodiscard]] std::optional<std::vector<dv::Trigger>> getNextTriggerBatch();
 
 	/**
 	 * Checks whether frame data stream is present in the file.
@@ -71,19 +72,19 @@ public:
 
 	/**
 	 * Checks whether event data stream is present in the file.
-	 * @return 		True if the events are available, false otherwise. It is always true for dv::io::CameraCapture.
+	 * @return 		True if the events are available, false otherwise. It is always true for live camera input.
 	 */
 	[[nodiscard]] bool isEventStreamAvailable() const;
 
 	/**
 	 * Checks whether event data stream is present in the file.
-	 * @return 		True if the imu data is available, false otherwise. It is always true for dv::io::CameraCapture.
+	 * @return 		True if the imu data is available, false otherwise. It is always true for live camera input.
 	 */
 	[[nodiscard]] bool isImuStreamAvailable() const;
 
 	/**
 	 * Checks whether event data stream is present in the file.
-	 * @return 		True if the triggers are available, false otherwise. It is always true for dv::io::CameraCapture.
+	 * @return 		True if the triggers are available, false otherwise. It is always true for live camera input.
 	 */
 	[[nodiscard]] bool isTriggerStreamAvailable() const;
 
@@ -94,13 +95,13 @@ public:
 	[[nodiscard]] std::optional<std::pair<int64_t, int64_t>> getTimeRange() const;
 
 	[[nodiscard]] bool isConnected() const;
-	[[nodiscard]] const std::unique_ptr<dv::io::CameraCapture> &getCameraCapturePtr() const;
+	[[nodiscard]] const dv::io::camera::CameraPtr &getCameraCapturePtr() const;
 	[[nodiscard]] const std::unique_ptr<dv::io::MonoCameraRecording> &getMonoCameraRecordingPtr() const;
 	[[nodiscard]] std::string getCameraName() const;
 
 private:
 	// construct unique pointers at construction times
-	std::unique_ptr<dv::io::CameraCapture> cameraCapturePtr;
+	dv::io::camera::CameraPtr cameraCapturePtr;
 	bool mCameraCapture = false;
 	std::unique_ptr<dv::io::MonoCameraRecording> monoCameraRecordingPtr;
 };

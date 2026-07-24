@@ -1,6 +1,7 @@
 #pragma once
 
 // C++ System Headers
+#include <filesystem>
 #include <iostream>
 #include <vector>
 #include <map>
@@ -25,7 +26,7 @@
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include "sensor_msgs/srv/set_camera_info.hpp"
 
-#include <dv-processing/visualization/events_visualizer.hpp>
+#include <dv-processing/visualization/event_visualizer.hpp>
 #include <dv-processing/camera/calibration_set.hpp>
 #include <dv-processing/core/core.hpp>
 #include <dv-processing/camera/calibrations/camera_calibration.hpp>
@@ -43,6 +44,8 @@
 
 namespace dv_ros2_capture
 {
+    namespace fs = std::filesystem;
+
     using TimestampQueue = boost::lockfree::spsc_queue<int64_t, boost::lockfree::capacity<1000>>;
     struct Params
     {

@@ -1,5 +1,9 @@
 #include "dv_ros2_capture/Capture.hpp"
 
+#include <dv-processing/io/camera/sync_camera_input_base.hpp>
+
+#include <filesystem>
+
 namespace dv_ros2_capture
 {
     Capture::Capture(const std::string &t_node_name) 
@@ -91,13 +95,13 @@ namespace dv_ros2_capture
             if (const auto &imuCalib = m_calibration.getImuCalibrationByName(cameraName); imuCalib.has_value())
             {
                 m_transform_publisher = m_node->create_publisher<tf2_msgs::msg::TFMessage>("/tf", 100);
-                m_imu_time_offset == imuCalib->timeOffsetMicros;
+                m_imu_time_offset = imuCalib->timeOffsetMicros;
 
                 geometry_msgs::msg::TransformStamped msg;
                 msg.header.frame_id = m_params.imuFrameName;
                 msg.child_frame_id = m_params.cameraFrameName;
 
-                m_imu_to_cam_transform = dv::kinematics::Transformationf(0, Eigen::Matrix<float, 4, 4, Eigen::RowMajor>(imuCalib->transformationToC0.data()));
+                m_imu_to_cam_transform = imuCalib->transformationToC0;
 
                 m_acc_biases.x() = imuCalib->accOffsetAvg.x;
                 m_acc_biases.y() = imuCalib->accOffsetAvg.y;
@@ -164,27 +168,8 @@ namespace dv_ros2_capture
 
         auto& camera_ptr = m_reader.getCameraCapturePtr();
         if (camera_ptr != nullptr) {
-            if (camera_ptr->isFrameStreamAvailable()) 
-            {
-                // DAVIS camera
-                if (camera_ptr->isTriggerStreamAvailable()) {
-                    // External trigger detection support for DAVIS346 - MODIFY HERE FOR DIFFERENT DETECTION SETTINGS!
-                    camera_ptr->deviceConfigSet(DAVIS_CONFIG_EXTINPUT, DAVIS_CONFIG_EXTINPUT_DETECT_RISING_EDGES, true);
-                    camera_ptr->deviceConfigSet(DAVIS_CONFIG_EXTINPUT, DAVIS_CONFIG_EXTINPUT_DETECT_FALLING_EDGES, false);
-                    camera_ptr->deviceConfigSet(DAVIS_CONFIG_EXTINPUT, DAVIS_CONFIG_EXTINPUT_DETECT_PULSES, false);
-                    camera_ptr->deviceConfigSet(DAVIS_CONFIG_EXTINPUT, DAVIS_CONFIG_EXTINPUT_RUN_DETECTOR, m_params.triggers);
-                }
-            }
-            else {
-                // DVXplorer type camera
-                if (camera_ptr->isTriggerStreamAvailable()) {
-                    // External trigger detection support for DVXplorer - MODIFY HERE FOR DIFFERENT DETECTION SETTINGS!
-                    camera_ptr->deviceConfigSet(DVX_EXTINPUT, DVX_EXTINPUT_DETECT_RISING_EDGES, true);
-                    camera_ptr->deviceConfigSet(DVX_EXTINPUT, DVX_EXTINPUT_DETECT_FALLING_EDGES, false);
-                    camera_ptr->deviceConfigSet(DVX_EXTINPUT, DVX_EXTINPUT_DETECT_PULSES, false);
-                    camera_ptr->deviceConfigSet(DVX_EXTINPUT, DVX_EXTINPUT_RUN_DETECTOR, m_params.triggers);
-                }
-            }
+            // dv-processing 2.x removed the generic low-level CameraCapture config API.
+            // Keep capture operational using stream-level controls and the configured time interval.
             updateConfiguration();
         }
 
@@ -392,22 +377,14 @@ namespace dv_ros2_capture
         auto& camera_ptr = m_reader.getCameraCapturePtr();
         if (camera_ptr != nullptr)
         {
-            if (camera_ptr->isFrameStreamAvailable()) 
+            camera_ptr->setTimeInterval(std::chrono::microseconds(m_params.timeIncrement));
+
+            if (m_params.globalHold || m_params.biasSensitivity != 2)
             {
-                // DAVIS camera
-                camera_ptr->setDVSGlobalHold(m_params.globalHold);
-                camera_ptr->setDVSBiasSensitivity(static_cast<dv::io::CameraCapture::BiasSensitivity>(m_params.biasSensitivity));
-                updateNoiseFilter(m_params.noiseFiltering, static_cast<int64_t>(m_params.noiseBATime));
-            }
-            else {
-                // DVXplorer type camera
-                camera_ptr->setDVSGlobalHold(m_params.globalHold);
-                camera_ptr->setDVSBiasSensitivity(static_cast<dv::io::CameraCapture::BiasSensitivity>(m_params.biasSensitivity));
-                updateNoiseFilter(m_params.noiseFiltering, static_cast<int64_t>(m_params.noiseBATime));
+                RCLCPP_WARN(m_node->get_logger(), "global_hold and bias_sensitivity are not mapped in dv-processing 2.x camera API and are ignored.");
             }
 
-            // Support variable data interval sizes.
-            camera_ptr->deviceConfigSet(CAER_HOST_CONFIG_PACKETS, CAER_HOST_CONFIG_PACKETS_MAX_CONTAINER_INTERVAL, m_params.timeIncrement);
+            updateNoiseFilter(m_params.noiseFiltering, static_cast<int64_t>(m_params.noiseBATime));
         }
     }
 
@@ -654,13 +631,13 @@ namespace dv_ros2_capture
 
         switch (cameraGeometry.getDistortionModel()) 
         {
-            case dv::camera::DistortionModel::Equidistant: {
+            case dv::camera::DistortionModel::EQUIDISTANT: {
                 m_camera_info_msg.distortion_model = sensor_msgs::distortion_models::EQUIDISTANT;
                 m_camera_info_msg.d.assign(distortion.begin(), distortion.end());
                 break;
             }
 
-            case dv::camera::DistortionModel::RadTan: {
+            case dv::camera::DistortionModel::RADIAL_TANGENTIAL: {
                 m_camera_info_msg.distortion_model = sensor_msgs::distortion_models::PLUMB_BOB;
                 m_camera_info_msg.d.assign(distortion.begin(), distortion.end());
                 if (m_camera_info_msg.d.size() < 5) {
@@ -669,7 +646,7 @@ namespace dv_ros2_capture
                 break;
             }
 
-            case dv::camera::DistortionModel::None: {
+            case dv::camera::DistortionModel::NONE: {
                 m_camera_info_msg.distortion_model = sensor_msgs::distortion_models::PLUMB_BOB;
                 m_camera_info_msg.d                = {0.0, 0.0, 0.0, 0.0, 0.0};
                 break;
@@ -739,11 +716,11 @@ namespace dv_ros2_capture
         calib.distortion.assign(m_camera_info_msg.d.begin(), m_camera_info_msg.d.end());
         if (static_cast<std::string>(m_camera_info_msg.distortion_model) == sensor_msgs::distortion_models::PLUMB_BOB) 
         {
-            calib.distortionModel = dv::camera::DistortionModel::RadTan;
+            calib.distortionModel = dv::camera::DistortionModel::RADIAL_TANGENTIAL;
         }
         else if (static_cast<std::string>(m_camera_info_msg.distortion_model) == sensor_msgs::distortion_models::EQUIDISTANT) 
         {
-            calib.distortionModel = dv::camera::DistortionModel::Equidistant;
+            calib.distortionModel = dv::camera::DistortionModel::EQUIDISTANT;
         }
         else 
         {
@@ -754,7 +731,7 @@ namespace dv_ros2_capture
         calib.principalPoint
             = cv::Point2f(static_cast<float>(m_camera_info_msg.k[2]), static_cast<float>(m_camera_info_msg.k[5]));
 
-        calib.transformationToC0 = {1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f, 0.f, 0.f, 0.f, 0.f, 1.f};
+        calib.transformationToC0 = dv::kinematics::Transformationf(0, Eigen::Matrix4f::Identity());
 
         if (calibrationExists) 
         {
@@ -779,8 +756,7 @@ namespace dv_ros2_capture
         bool imuHasValues = false;
         if ((m_imu_to_cam_transforms.has_value() && !m_imu_to_cam_transforms->transforms.empty())) 
         {
-            const Eigen::Matrix4f mat         = m_imu_to_cam_transform.getTransform().transpose();
-            imuCalibration.transformationToC0 = std::vector<float>(mat.data(), mat.data() + mat.rows() * mat.cols());
+            imuCalibration.transformationToC0 = m_imu_to_cam_transform;
             imuHasValues                      = true;
         }
 
@@ -825,9 +801,16 @@ namespace dv_ros2_capture
 
         if (live_capture)
         {
-            m_synchronized = false;
-            live_capture->setDVXplorerEFPS(dv::io::CameraCapture::DVXeFPS::EFPS_CONSTANT_500);
-            m_sync_thread = std::thread(&Capture::synchronizationThread, this);
+            if (dynamic_cast<dv::io::camera::SyncCameraInputBase *>(live_capture.get()) != nullptr)
+            {
+                m_synchronized = false;
+                m_sync_thread = std::thread(&Capture::synchronizationThread, this);
+            }
+            else
+            {
+                m_synchronized = true;
+                RCLCPP_WARN(m_node->get_logger(), "Live camera does not expose sync APIs through dv-processing 2.x; continuing without synchronization thread.");
+            }
         }
         else 
         {
@@ -940,17 +923,20 @@ namespace dv_ros2_capture
     void Capture::runDiscovery(const std::string &syncServiceName)
     {
         const auto &liveCapture = m_reader.getCameraCapturePtr();
+        auto *syncCapture = (liveCapture != nullptr)
+            ? dynamic_cast<dv::io::camera::SyncCameraInputBase *>(liveCapture.get())
+            : nullptr;
 
-        if (liveCapture == nullptr)
+        if (syncCapture == nullptr)
         {
             return;
         }
 
         m_discovery_publisher = m_node->create_publisher<dv_ros2_msgs::msg::CameraDiscovery>("/dvs/discovery", 10);
-        m_discovery_thread = std::make_unique<std::thread>([this, &liveCapture, &syncServiceName] 
+        m_discovery_thread = std::make_unique<std::thread>([this, &liveCapture, &syncServiceName, syncCapture] 
         {
             dv_ros2_msgs::msg::CameraDiscovery message;
-            message.is_master = liveCapture->isMasterCamera();
+            message.is_master = syncCapture->isMaster();
             message.name = liveCapture->getCameraName();
             message.startup_time = startup_time;
             message.publishing_events = m_params.events;
@@ -1186,7 +1172,7 @@ namespace dv_ros2_capture
         }
 
         auto request = std::make_shared<dv_ros2_msgs::srv::SynchronizeCamera::Request>();
-        request->timestamp_offset = liveCapture->getTimestampOffset();
+        request->timestamp_offset = liveCapture->getTimestampOffset().count();
         request->master_camera_name = liveCapture->getCameraName();
 
         for (const auto &[cameraName, serviceName] : serviceNames) 
@@ -1225,25 +1211,32 @@ namespace dv_ros2_capture
         rsp->success = false;
 
         auto &liveCapture = m_reader.getCameraCapturePtr();
+        auto *syncCapture = (liveCapture != nullptr)
+            ? dynamic_cast<dv::io::camera::SyncCameraInputBase *>(liveCapture.get())
+            : nullptr;
         if (!liveCapture) 
         {
             RCLCPP_WARN(m_node->get_logger(), "Received synchronization request on a non-live camera!");
-            //return true;
+            return;
         }
-        if (liveCapture->isRunning() && liveCapture->isMasterCamera()) 
+        if (syncCapture == nullptr)
         {
-            // Update the timestamp offset
-            liveCapture->setTimestampOffset(req->timestamp_offset);
-            RCLCPP_INFO_STREAM(m_node->get_logger(), "Camera [" << liveCapture->getCameraName() << "] synchronized: timestamp offset updated.");
+            RCLCPP_WARN(m_node->get_logger(), "Synchronization request ignored: camera does not support sync API in dv-processing 2.x.");
+            rsp->success = false;
             rsp->camera_name = liveCapture->getCameraName();
-            rsp->success = true;
-            m_synchronized = true;
+            return;
+        }
+        if (liveCapture->isRunning() && !syncCapture->isMaster())
+        {
+            RCLCPP_WARN(m_node->get_logger(), "Timestamp offset updates are no longer externally writable in dv-processing 2.x sync API.");
+            rsp->success = false;
+            rsp->camera_name = liveCapture->getCameraName();
         }
         else
         {
             RCLCPP_WARN(m_node->get_logger(), "Received synchronization request on a master camera, please check synchronization cable!");
+            rsp->success = false;
         }
-        //return true;
     }
 
     void Capture::synchronizationThread()
@@ -1251,7 +1244,18 @@ namespace dv_ros2_capture
         RCLCPP_INFO(m_node->get_logger(), "Spinning synchronization thread.");
         std::string serviceName;
         const auto &liveCapture = m_reader.getCameraCapturePtr();
-        if (liveCapture->isMasterCamera()) 
+        auto *syncCapture = (liveCapture != nullptr)
+            ? dynamic_cast<dv::io::camera::SyncCameraInputBase *>(liveCapture.get())
+            : nullptr;
+
+        if (syncCapture == nullptr)
+        {
+            RCLCPP_WARN(m_node->get_logger(), "Synchronization thread requested for non-sync-capable camera. Continuing without synchronization.");
+            m_synchronized = true;
+            return;
+        }
+
+        if (syncCapture->isMaster()) 
         {
             RCLCPP_INFO_STREAM(m_node->get_logger(), "Camera [" << liveCapture->getCameraName() << "] is master camera.");
             // Wait for all cameras to show up
@@ -1332,7 +1336,7 @@ namespace dv_ros2_capture
     {
         RCLCPP_INFO(m_node->get_logger(), "Spinning imu publisher.");
 
-        std::optional<dv::cvector<dv::IMU>> imuData = std::nullopt;
+        std::optional<std::vector<dv::IMU>> imuData = std::nullopt;
 
         while(m_spin_thread)
         {
@@ -1423,7 +1427,7 @@ namespace dv_ros2_capture
     {
         RCLCPP_INFO(m_node->get_logger(), "Spinning trigger publisher.");
 
-        std::optional<dv::cvector<dv::Trigger>> triggerData = std::nullopt;
+        std::optional<std::vector<dv::Trigger>> triggerData = std::nullopt;
 
         while (m_spin_thread)
         {
