@@ -44,6 +44,14 @@ ros2 launch dv_ros2_visualization all.launch.py
 ```
 A GUI should open with the 4 different camera streams.
 
+To simply launch a window to visualise the event stream from the camera, run the following commands:
+
+```
+source install/setup.bash
+ros2 launch dv_ros2_visualization visualization.launch.py
+```
+
+
 ### Repository structure
 
 The repository contains multiple projects:
