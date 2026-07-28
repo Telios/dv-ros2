@@ -1,18 +1,46 @@
 # DV ROS2 Jazzy
 
-This repository is a fork of an original ROS2 wrapped for inivation cameras [dv-ros2](https://github.com/Telios/dv-ros2). This repository has been updated to work with ROS2 Jazzy and dv-processing Version. This README has been updated for this fork, but subsequent READMEs inside individual packages are not updated from the original repository.
+This repository is a fork of an original ROS2 wrapper for inivation cameras [dv-ros2](https://github.com/Telios/dv-ros2). This repository has been updated to work with ROS2 Jazzy and dv-processing Version 2.0.3.1. This README has been updated for this fork, but subsequent READMEs inside packages are unchanged from the original repository as no functionality has changed.
 
-This package contains ROS2 wrappers for iniVation cameras. The package is based on the [dv-ros](https://gitlab.com/inivation/dv/dv-ros) repository and has been adapted to work with ROS2. The package is still under development and some features are not yet implemented. This project is not affiliated with iniVation AG.
-
+This package contains ROS2 wrappers for iniVation cameras. The package is based on the [dv-ros](https://gitlab.com/inivation/dv/dv-ros) repository and has been adapted to work with ROS2 Jazzy. The package is still under development and some features are not yet implemented. This project is not affiliated with iniVation AG.
 
 ## Installation
 
 Tested on Ubuntu 24.04 with ROS2 Jazzy. Only confirmed to work with dv-processing Version 2.0.3.1
+
 First, clone the repository.
     
 ```
 git clone https://github.com/GBrayshaw/dv-ros2.git
 ```
+
+### Docker
+
+Tested with Docker version 28.1.1 using the following commands to build from scratch:
+
+
+Compose image.
+
+```
+docker compose -f docker/docker-compose.yml build
+```
+
+Launch into image shell.
+
+```
+docker compose -f docker/docker-compose.yml run --rm dv-ros2 bash
+```
+
+Build workspace within container.
+
+
+```
+cd /ros2_ws
+source /opt/ros/jazzy/setup.bash
+colcon build
+```
+
+#### Note: When using docker, visualisation packages will not work with headless installs.
 
 
 ### Dependencies
