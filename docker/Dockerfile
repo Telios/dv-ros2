@@ -8,8 +8,8 @@ RUN mkdir -p ./ros2_ws/src
 WORKDIR /ros2_ws/src
 COPY . /ros2_ws/src/
 
-RUN apt update && apt install locales && locale-gen en_US en_US.UTF-8 && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 && export LANG=en_US.UTF-8 && apt install software-properties-common curl build-essential -y
-RUN apt update && DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y locales && locale-gen en_US en_US.UTF-8 && update-locale LC_ALL=en_US.UTF-8 LANG=en_US.UTF-8 && export LANG=en_US.UTF-8 && DEBIAN_FRONTEND=noninteractive apt-get install -y software-properties-common curl build-essential
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y tzdata
 RUN add-apt-repository universe -y \
 	&& add-apt-repository ppa:ubuntu-toolchain-r/test -y \
 	&& add-apt-repository ppa:inivation-ppa/inivation -y
