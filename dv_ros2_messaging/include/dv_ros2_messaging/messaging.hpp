@@ -221,7 +221,9 @@ namespace _detail {
 			timestamp = static_cast<int64_t>(seconds) * 1'000'000;
 		}
 		const int64_t eventTimestamp = timestamp + static_cast<int64_t>(event.ts.nanosec / 1000);
-		dv::runtime_assert(eventTimestamp == toDvTime(event.ts), "Timestamp conversion failed!");
+		dv::runtime_assert(
+			[&eventTimestamp, &event]() { return eventTimestamp == toDvTime(event.ts); },
+			[]() { return "Timestamp conversion failed!"; });
 		eventPacket->elements.emplace_back(eventTimestamp, event.x, event.y, event.polarity);
 	}
 	dv::EventStore store(std::const_pointer_cast<const dv::EventPacket>(eventPacket));

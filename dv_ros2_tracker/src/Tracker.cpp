@@ -118,10 +118,10 @@ namespace dv_ros2_tracker
             m_camera_calibration.distortion.push_back(static_cast<float>(d));
         }
         if (static_cast<std::string>(msgPtr->distortion_model) == sensor_msgs::distortion_models::EQUIDISTANT) {
-		m_camera_calibration.distortionModel = dv::camera::DistortionModel::Equidistant;
+		m_camera_calibration.distortionModel = dv::camera::DistortionModel::EQUIDISTANT;
         }
         else if (static_cast<std::string>(msgPtr->distortion_model) == sensor_msgs::distortion_models::PLUMB_BOB) {
-            m_camera_calibration.distortionModel = dv::camera::DistortionModel::RadTan;
+            m_camera_calibration.distortionModel = dv::camera::DistortionModel::RADIAL_TANGENTIAL;
         }
         else {
             throw dv::exceptions::InvalidArgument<std::string>(
@@ -325,10 +325,10 @@ namespace dv_ros2_tracker
         }
     }
 
-    dv::cvector<dv::TimedKeyPoint> Tracker::undistortKeypoints(const dv::cvector<dv::TimedKeyPoint> &keypoints)
+    std::vector<dv::TimedKeyPoint> Tracker::undistortKeypoints(const std::vector<dv::TimedKeyPoint> &keypoints)
     {
         static const auto mCamGeom                          = m_camera_calibration.getCameraGeometry();
-        dv::cvector<dv::TimedKeyPoint> undistortedKeypoints = keypoints;
+        std::vector<dv::TimedKeyPoint> undistortedKeypoints = keypoints;
         for (auto &keypoint : undistortedKeypoints) 
         {
             keypoint.pt = mCamGeom.undistort<dv::Point2f>(keypoint.pt);
